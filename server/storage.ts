@@ -32,6 +32,17 @@ export interface IStorage {
   getAddresses(userId: string): Promise<Address[]>;
   getAddressById(id: string): Promise<Address | undefined>;
   createAddress(address: InsertAddress): Promise<Address>;
+  createGuestAddress(data: { 
+    name: string; 
+    email: string; 
+    phone: string; 
+    area: string; 
+    block: string; 
+    street: string; 
+    building?: string; 
+    floor?: string; 
+    notes?: string; 
+  }): Promise<Address>;
   updateAddress(id: string, address: Partial<InsertAddress>): Promise<Address | undefined>;
   deleteAddress(id: string): Promise<boolean>;
   
@@ -171,6 +182,35 @@ export class DatabaseStorage implements IStorage {
 
   async createAddress(insertAddress: InsertAddress): Promise<Address> {
     const [address] = await db.insert(addresses).values(insertAddress).returning();
+    return address;
+  }
+
+  async createGuestAddress(data: { 
+    name: string; 
+    email: string; 
+    phone: string; 
+    area: string; 
+    block: string; 
+    street: string; 
+    building?: string; 
+    floor?: string; 
+    notes?: string; 
+  }): Promise<Address> {
+    const [address] = await db.insert(addresses).values({
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      area: data.area,
+      block: data.block,
+      street: data.street,
+      building: data.building || null,
+      floor: data.floor || null,
+      notes: data.notes || null,
+      userId: null,
+      label: null,
+      apartment: null,
+      isDefault: false,
+    }).returning();
     return address;
   }
 

@@ -61,8 +61,10 @@ export type CartItem = typeof cartItems.$inferSelect;
 
 export const addresses = pgTable("addresses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
-  label: text("label").notNull(),
+  userId: varchar("user_id").references(() => users.id),
+  label: text("label"),
+  name: text("name"),
+  email: text("email"),
   street: text("street").notNull(),
   area: text("area").notNull(),
   block: text("block"),
@@ -70,6 +72,7 @@ export const addresses = pgTable("addresses", {
   floor: text("floor"),
   apartment: text("apartment"),
   phone: text("phone"),
+  notes: text("notes"),
   isDefault: boolean("is_default").default(false),
 });
 

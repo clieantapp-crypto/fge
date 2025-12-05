@@ -245,9 +245,22 @@ export async function registerRoutes(
   // Stripe checkout
   app.post("/api/checkout/create-payment-intent", async (req: Request, res: Response) => {
     try {
-      const { amount, sessionId, customerEmail, customerPhone, shippingAddress } = req.body;
+      const { amount, sessionId, customerEmail, customerPhone, shippingAddress, cartItems: clientCartItems } = req.body;
       
-      // Create order first
+      // Create guest address first
+      const address = await storage.createGuestAddress({
+        name: shippingAddress.name,
+        email: customerEmail,
+        phone: customerPhone,
+        area: shippingAddress.area,
+        block: shippingAddress.block,
+        street: shippingAddress.street,
+        building: shippingAddress.building || undefined,
+        floor: shippingAddress.floor || undefined,
+        notes: shippingAddress.notes || undefined,
+      });
+
+      // Create order with address reference
       const order = await storage.createOrder({
         status: "pending",
         totalAmount: amount.toString(),
@@ -256,24 +269,42 @@ export async function registerRoutes(
         guestEmail: customerEmail,
         guestPhone: customerPhone,
         userId: null,
-        addressId: null,
+        addressId: address.id,
         stripeSessionId: null,
-        notes: shippingAddress ? JSON.stringify(shippingAddress) : null,
+        notes: null,
       });
 
-      // Get cart items and create order items
-      const cartItems = await storage.getCartItems(sessionId);
-      for (const item of cartItems) {
-        const product = await storage.getProductById(item.productId);
-        if (product) {
-          await storage.createOrderItem({
-            orderId: order.id,
-            productId: item.productId,
-            quantity: item.quantity,
-            priceAtTime: product.price,
-            nameArAtTime: product.nameAr,
-            nameEnAtTime: product.nameEn,
-          });
+      // Get cart items from database or use client-provided items
+      let cartItems = await storage.getCartItems(sessionId);
+      
+      // If no items in database, use client-provided items
+      if (cartItems.length === 0 && clientCartItems && clientCartItems.length > 0) {
+        for (const item of clientCartItems) {
+          const product = await storage.getProductById(item.productId);
+          if (product) {
+            await storage.createOrderItem({
+              orderId: order.id,
+              productId: item.productId,
+              quantity: item.quantity,
+              priceAtTime: product.price,
+              nameArAtTime: product.nameAr,
+              nameEnAtTime: product.nameEn,
+            });
+          }
+        }
+      } else {
+        for (const item of cartItems) {
+          const product = await storage.getProductById(item.productId);
+          if (product) {
+            await storage.createOrderItem({
+              orderId: order.id,
+              productId: item.productId,
+              quantity: item.quantity,
+              priceAtTime: product.price,
+              nameArAtTime: product.nameAr,
+              nameEnAtTime: product.nameEn,
+            });
+          }
         }
       }
 
@@ -284,16 +315,18 @@ export async function registerRoutes(
         metadata: {
           orderId: order.id,
           sessionId,
+          addressId: address.id,
         },
         receipt_email: customerEmail,
       });
 
-      // Update order with stripe session
+      // Update order with stripe payment intent id
       await storage.updateOrderStatus(order.id, "pending", "processing");
 
       res.json({
         clientSecret: paymentIntent.client_secret,
         orderId: order.id,
+        addressId: address.id,
       });
     } catch (error: any) {
       console.error("Checkout error:", error);
