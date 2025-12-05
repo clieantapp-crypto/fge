@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { loadStripe } from "@stripe/stripe-js";
-import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCart } from "@/contexts/CartContext";
 import { Button } from "@/components/ui/button";
@@ -22,7 +20,8 @@ import {
   Phone,
   Mail,
   MapPin,
-  User
+  User,
+  ExternalLink
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import Header from "@/components/Header";
@@ -45,17 +44,6 @@ const imageMap: Record<string, string> = {
   goat: lambImg,
 };
 
-let stripePromise: Promise<any> | null = null;
-
-function getStripe() {
-  if (!stripePromise) {
-    stripePromise = fetch("/api/config/stripe")
-      .then((res) => res.json())
-      .then((data) => loadStripe(data.publishableKey));
-  }
-  return stripePromise;
-}
-
 interface CustomerInfo {
   name: string;
   email: string;
@@ -68,134 +56,10 @@ interface CustomerInfo {
   notes: string;
 }
 
-function PaymentForm({ 
-  clientSecret, 
-  orderId, 
-  onSuccess,
-  totalPrice 
-}: { 
-  clientSecret: string; 
-  orderId: string;
-  onSuccess: () => void;
-  totalPrice: number;
-}) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const { t, isRTL } = useLanguage();
-  const { sessionId, clearCart } = useCart();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const confirmMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/checkout/confirm", { orderId, sessionId });
-      return res.json();
-    },
-    onSuccess: () => {
-      clearCart();
-      onSuccess();
-    },
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-
-    setIsProcessing(true);
-    setError(null);
-
-    const { error: submitError } = await elements.submit();
-    if (submitError) {
-      setError(submitError.message || t("حدث خطأ", "An error occurred"));
-      setIsProcessing(false);
-      return;
-    }
-
-    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: window.location.origin + "/checkout/success",
-      },
-      redirect: "if_required",
-    });
-
-    if (confirmError) {
-      setError(confirmError.message || t("فشل الدفع", "Payment failed"));
-      setIsProcessing(false);
-    } else if (paymentIntent?.status === "succeeded") {
-      await confirmMutation.mutateAsync();
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="bg-muted/30 p-4 rounded-md mb-4">
-        <div className="flex items-center gap-2 mb-3">
-          <CreditCard className="h-5 w-5 text-primary" />
-          <span className="font-semibold">{t("معلومات البطاقة", "Card Information")}</span>
-        </div>
-        <PaymentElement 
-          options={{
-            layout: "tabs",
-          }}
-        />
-      </div>
-
-      {error && (
-        <div className="bg-destructive/10 text-destructive p-4 rounded-md text-sm flex items-start gap-2">
-          <div className="shrink-0 mt-0.5">
-            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <span>{error}</span>
-        </div>
-      )}
-
-      <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/20 rounded-md text-green-700 dark:text-green-400 text-sm">
-        <Lock className="h-4 w-4" />
-        <span>{t("دفع آمن ومشفر بتقنية SSL", "Secure payment encrypted with SSL")}</span>
-      </div>
-
-      <Button 
-        type="submit" 
-        className="w-full rounded-full h-14 text-lg font-semibold" 
-        size="lg"
-        disabled={!stripe || isProcessing}
-        data-testid="button-pay"
-      >
-        {isProcessing ? (
-          <>
-            <Loader2 className="h-5 w-5 me-2 animate-spin" />
-            {t("جاري معالجة الدفع...", "Processing Payment...")}
-          </>
-        ) : (
-          <>
-            <Lock className="h-5 w-5 me-2" />
-            {t("ادفع", "Pay")} {totalPrice.toFixed(3)} {t("د.ك", "KWD")}
-          </>
-        )}
-      </Button>
-
-      <div className="flex items-center justify-center gap-4 text-muted-foreground text-xs">
-        <div className="flex items-center gap-1">
-          <Shield className="h-4 w-4" />
-          <span>{t("حماية المشتري", "Buyer Protection")}</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Lock className="h-4 w-4" />
-          <span>{t("دفع مشفر", "Encrypted")}</span>
-        </div>
-      </div>
-    </form>
-  );
-}
-
 export default function Checkout() {
   const { t, language, isRTL } = useLanguage();
   const { items, totalPrice, sessionId, totalItems, clearCart } = useCart();
-  const [step, setStep] = useState<"info" | "payment" | "success">("info");
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [step, setStep] = useState<"info" | "payment" | "processing" | "success">("info");
   const [orderId, setOrderId] = useState<string | null>(null);
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
     name: "",
@@ -209,13 +73,14 @@ export default function Checkout() {
     notes: "",
   });
 
-  const createPaymentMutation = useMutation({
+  const createOrderMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/checkout/create-payment-intent", {
+      const res = await apiRequest("POST", "/api/checkout/create-order", {
         amount: totalPrice,
         sessionId,
         customerEmail: customerInfo.email,
         customerPhone: customerInfo.phone,
+        paymentMethod: "knet",
         shippingAddress: {
           name: customerInfo.name,
           area: customerInfo.area,
@@ -233,15 +98,37 @@ export default function Checkout() {
       return res.json();
     },
     onSuccess: (data: any) => {
-      setClientSecret(data.clientSecret);
       setOrderId(data.orderId);
       setStep("payment");
     },
   });
 
+  const processKnetPayment = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/checkout/process-knet", {
+        orderId,
+        sessionId,
+      });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.redirectUrl) {
+        window.location.href = data.redirectUrl;
+      } else {
+        clearCart();
+        setStep("success");
+      }
+    },
+  });
+
   const handleInfoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createPaymentMutation.mutate();
+    createOrderMutation.mutate();
+  };
+
+  const handleKnetPayment = () => {
+    setStep("processing");
+    processKnetPayment.mutate();
   };
 
   const handleInputChange = (field: keyof CustomerInfo) => (
@@ -267,6 +154,30 @@ export default function Checkout() {
               <Button asChild className="rounded-full">
                 <a href="/">{t("تسوق الآن", "Shop Now")}</a>
               </Button>
+            </CardContent>
+          </Card>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (step === "processing") {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 flex items-center justify-center py-12 bg-background">
+          <Card className="max-w-md w-full mx-4">
+            <CardContent className="pt-8 text-center">
+              <div className="h-20 w-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center mb-6">
+                <Loader2 className="h-10 w-10 text-primary animate-spin" />
+              </div>
+              <h2 className="text-xl font-bold mb-2 text-foreground">
+                {t("جاري التحويل لبوابة كي نت", "Redirecting to KNET Gateway")}
+              </h2>
+              <p className="text-muted-foreground">
+                {t("يرجى الانتظار...", "Please wait...")}
+              </p>
             </CardContent>
           </Card>
         </main>
@@ -352,24 +263,18 @@ export default function Checkout() {
           </div>
 
           <div className="flex items-center gap-4 mb-8">
-            <div className={`flex items-center gap-2 ${step === "info" || step === "payment" ? "text-primary" : "text-muted-foreground"}`}>
-              <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                step === "info" ? "bg-primary text-primary-foreground" : 
-                step === "payment" || step === "success" ? "bg-primary text-primary-foreground" : 
-                "bg-muted text-muted-foreground"
-              }`}>
-                {step === "payment" || step === "success" ? <CheckCircle className="h-4 w-4" /> : "1"}
+            <div className="flex items-center gap-2 text-primary">
+              <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold bg-primary text-primary-foreground">
+                {step === "info" ? "1" : <CheckCircle className="h-4 w-4" />}
               </div>
               <span className="font-medium hidden sm:inline">{t("معلومات التوصيل", "Delivery Info")}</span>
             </div>
             <div className="flex-1 h-0.5 bg-border" />
-            <div className={`flex items-center gap-2 ${step === "payment" ? "text-primary" : "text-muted-foreground"}`}>
+            <div className={`flex items-center gap-2 ${step !== "info" ? "text-primary" : "text-muted-foreground"}`}>
               <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                step === "payment" ? "bg-primary text-primary-foreground" : 
-                step === "success" ? "bg-primary text-primary-foreground" : 
-                "bg-muted text-muted-foreground"
+                step !== "info" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
               }`}>
-                {step === "success" ? <CheckCircle className="h-4 w-4" /> : "2"}
+                2
               </div>
               <span className="font-medium hidden sm:inline">{t("الدفع", "Payment")}</span>
             </div>
@@ -398,9 +303,9 @@ export default function Checkout() {
                           <CreditCard className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                          <span>{t("الدفع الآمن", "Secure Payment")}</span>
+                          <span>{t("الدفع عبر كي نت", "Pay via KNET")}</span>
                           <p className="text-sm font-normal text-muted-foreground mt-0.5">
-                            {t("أدخل بيانات البطاقة", "Enter your card details")}
+                            {t("سيتم تحويلك لبوابة الدفع الآمنة", "You will be redirected to secure payment gateway")}
                           </p>
                         </div>
                       </>
@@ -565,7 +470,7 @@ export default function Checkout() {
                         </div>
                       </div>
 
-                      {createPaymentMutation.error && (
+                      {createOrderMutation.error && (
                         <div className="bg-destructive/10 text-destructive p-4 rounded-md text-sm">
                           {t("حدث خطأ. يرجى المحاولة مرة أخرى.", "An error occurred. Please try again.")}
                         </div>
@@ -575,10 +480,10 @@ export default function Checkout() {
                         type="submit" 
                         className="w-full rounded-full h-12 text-base font-semibold" 
                         size="lg"
-                        disabled={createPaymentMutation.isPending}
+                        disabled={createOrderMutation.isPending}
                         data-testid="button-continue-payment"
                       >
-                        {createPaymentMutation.isPending ? (
+                        {createOrderMutation.isPending ? (
                           <>
                             <Loader2 className="h-5 w-5 me-2 animate-spin" />
                             {t("جاري التحميل...", "Loading...")}
@@ -593,7 +498,7 @@ export default function Checkout() {
                     </form>
                   )}
 
-                  {step === "payment" && clientSecret && (
+                  {step === "payment" && (
                     <div className="space-y-6">
                       <Button
                         variant="ghost"
@@ -631,54 +536,74 @@ export default function Checkout() {
                         </div>
                       </div>
 
-                      <Elements
-                        stripe={getStripe()}
-                        options={{
-                          clientSecret,
-                          appearance: {
-                            theme: "stripe",
-                            variables: {
-                              colorPrimary: "#E37E16",
-                              colorBackground: "#ffffff",
-                              colorText: "#1a1a1a",
-                              colorDanger: "#dc2626",
-                              fontFamily: '"Open Sans", system-ui, sans-serif',
-                              borderRadius: "8px",
-                              spacingUnit: "4px",
-                            },
-                            rules: {
-                              '.Input': {
-                                border: '1px solid #e5e7eb',
-                                boxShadow: 'none',
-                                padding: '12px',
-                              },
-                              '.Input:focus': {
-                                border: '2px solid #E37E16',
-                                boxShadow: 'none',
-                              },
-                              '.Label': {
-                                fontWeight: '500',
-                                marginBottom: '8px',
-                              },
-                              '.Tab': {
-                                border: '1px solid #e5e7eb',
-                                borderRadius: '8px',
-                              },
-                              '.Tab--selected': {
-                                border: '2px solid #E37E16',
-                                backgroundColor: '#FEF3E7',
-                              },
-                            },
-                          },
-                        }}
-                      >
-                        <PaymentForm 
-                          clientSecret={clientSecret} 
-                          orderId={orderId!}
-                          onSuccess={() => setStep("success")}
-                          totalPrice={totalPrice}
-                        />
-                      </Elements>
+                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 p-6 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="h-16 w-24 bg-white dark:bg-gray-800 rounded-md flex items-center justify-center p-2 shadow-sm">
+                            <span className="text-2xl font-bold text-blue-600">KNET</span>
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-foreground">
+                              {t("الدفع عبر كي نت", "Pay via KNET")}
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              {t("بوابة الدفع الإلكتروني الكويتية", "Kuwait Electronic Payment Gateway")}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3 mb-6">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Shield className="h-4 w-4 text-blue-600" />
+                            {t("دفع آمن ومشفر", "Secure and encrypted payment")}
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Lock className="h-4 w-4 text-blue-600" />
+                            {t("حماية بيانات البطاقة", "Card data protection")}
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <CreditCard className="h-4 w-4 text-blue-600" />
+                            {t("يدعم جميع البطاقات الكويتية", "Supports all Kuwaiti cards")}
+                          </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-gray-800 p-4 rounded-md mb-4">
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">{t("المبلغ المطلوب", "Amount Due")}</span>
+                            <span className="text-2xl font-bold text-primary">{totalPrice.toFixed(3)} {t("د.ك", "KWD")}</span>
+                          </div>
+                        </div>
+
+                        <Button 
+                          onClick={handleKnetPayment}
+                          className="w-full rounded-full h-14 text-lg font-semibold bg-blue-600 hover:bg-blue-700"
+                          size="lg"
+                          disabled={processKnetPayment.isPending}
+                          data-testid="button-pay-knet"
+                        >
+                          {processKnetPayment.isPending ? (
+                            <>
+                              <Loader2 className="h-5 w-5 me-2 animate-spin" />
+                              {t("جاري التحويل...", "Redirecting...")}
+                            </>
+                          ) : (
+                            <>
+                              <ExternalLink className="h-5 w-5 me-2" />
+                              {t("ادفع الآن عبر كي نت", "Pay Now via KNET")}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      <div className="flex items-center justify-center gap-4 text-muted-foreground text-xs">
+                        <div className="flex items-center gap-1">
+                          <Shield className="h-4 w-4" />
+                          <span>{t("حماية المشتري", "Buyer Protection")}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Lock className="h-4 w-4" />
+                          <span>{t("SSL مشفر", "SSL Encrypted")}</span>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -700,37 +625,45 @@ export default function Checkout() {
                 </CardHeader>
                 <CardContent className="pt-4">
                   <div className="space-y-3 max-h-64 overflow-y-auto">
-                    {items.map((item) => (
-                      <div 
-                        key={item.product.id} 
-                        className="flex gap-3"
-                        data-testid={`checkout-item-${item.product.id}`}
-                      >
-                        <div className="relative">
-                          <img
-                            src={imageMap[item.product.category] || item.product.image}
-                            alt={language === "ar" ? item.product.nameAr : item.product.nameEn}
-                            className="w-14 h-14 object-cover rounded-md"
-                          />
-                          <div className="absolute -top-1 -end-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-medium">
-                            {item.quantity}
+                    {items.map((item) => {
+                      const hasDiscount = item.product.isOnSale && item.product.originalPrice;
+                      return (
+                        <div 
+                          key={item.product.id} 
+                          className="flex gap-3"
+                          data-testid={`checkout-item-${item.product.id}`}
+                        >
+                          <div className="relative">
+                            <img
+                              src={imageMap[item.product.category] || item.product.image}
+                              alt={language === "ar" ? item.product.nameAr : item.product.nameEn}
+                              className="w-14 h-14 object-cover rounded-md"
+                            />
+                            <div className="absolute -top-1 -end-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-medium">
+                              {item.quantity}
+                            </div>
+                            {hasDiscount && (
+                              <div className="absolute -bottom-1 -start-1 bg-red-500 text-white text-[10px] px-1 rounded">
+                                -{item.product.discountPercent}%
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-sm truncate text-foreground">
+                              {language === "ar" ? item.product.nameAr : item.product.nameEn}
+                            </h4>
+                            <p className="text-sm text-muted-foreground">
+                              {parseFloat(item.product.price).toFixed(3)} {t("د.ك", "KWD")} x {item.quantity}
+                            </p>
+                          </div>
+                          <div className="text-end">
+                            <p className="font-semibold text-sm">
+                              {(parseFloat(item.product.price) * item.quantity).toFixed(3)} {t("د.ك", "KWD")}
+                            </p>
                           </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-sm truncate text-foreground">
-                            {language === "ar" ? item.product.nameAr : item.product.nameEn}
-                          </h4>
-                          <p className="text-sm text-muted-foreground">
-                            {parseFloat(item.product.price).toFixed(3)} {t("د.ك", "KWD")} x {item.quantity}
-                          </p>
-                        </div>
-                        <div className="text-end">
-                          <p className="font-semibold text-sm">
-                            {(parseFloat(item.product.price) * item.quantity).toFixed(3)} {t("د.ك", "KWD")}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   
                   <Separator className="my-4" />
@@ -761,8 +694,9 @@ export default function Checkout() {
                   </div>
 
                   <div className="mt-4 flex items-center justify-center gap-4">
-                    <img src="https://cdn.brandfolder.io/KGT2DTA4/at/8vbr8k4mr5ngr8p9rx3jxr/Visa_Brandmark_Blue_RGB_2021.svg" alt="Visa" className="h-6 opacity-70" />
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/200px-Mastercard-logo.svg.png" alt="Mastercard" className="h-6 opacity-70" />
+                    <div className="bg-blue-100 dark:bg-blue-900/30 px-3 py-1.5 rounded">
+                      <span className="text-sm font-bold text-blue-600 dark:text-blue-400">KNET</span>
+                    </div>
                     <div className="flex items-center gap-1 text-muted-foreground text-xs">
                       <Shield className="h-4 w-4" />
                       <span>{t("دفع آمن", "Secure")}</span>

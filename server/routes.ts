@@ -350,6 +350,104 @@ export async function registerRoutes(
     }
   });
 
+  // KNET checkout - Create order
+  app.post("/api/checkout/create-order", async (req: Request, res: Response) => {
+    try {
+      const { amount, sessionId, customerEmail, customerPhone, paymentMethod, shippingAddress, cartItems: clientCartItems } = req.body;
+      
+      // Create guest address first
+      const address = await storage.createGuestAddress({
+        name: shippingAddress.name,
+        email: customerEmail,
+        phone: customerPhone,
+        area: shippingAddress.area,
+        block: shippingAddress.block,
+        street: shippingAddress.street,
+        building: shippingAddress.building || undefined,
+        floor: shippingAddress.floor || undefined,
+        notes: shippingAddress.notes || undefined,
+      });
+
+      // Create order with address reference
+      const order = await storage.createOrder({
+        status: "pending",
+        totalAmount: amount.toString(),
+        paymentMethod: paymentMethod || "knet",
+        paymentStatus: "pending",
+        guestEmail: customerEmail,
+        guestPhone: customerPhone,
+        userId: null,
+        addressId: address.id,
+        stripeSessionId: null,
+        notes: null,
+      });
+
+      // Create order items from cart
+      if (clientCartItems && clientCartItems.length > 0) {
+        for (const item of clientCartItems) {
+          const product = await storage.getProductById(item.productId);
+          if (product) {
+            await storage.createOrderItem({
+              orderId: order.id,
+              productId: item.productId,
+              quantity: item.quantity,
+              priceAtTime: product.price,
+              nameArAtTime: product.nameAr,
+              nameEnAtTime: product.nameEn,
+            });
+          }
+        }
+      }
+
+      res.json({
+        orderId: order.id,
+        addressId: address.id,
+      });
+    } catch (error: any) {
+      console.error("Create order error:", error);
+      res.status(500).json({ error: error.message || "Failed to create order" });
+    }
+  });
+
+  // KNET payment processing - redirect to KNET gateway
+  app.post("/api/checkout/process-knet", async (req: Request, res: Response) => {
+    try {
+      const { orderId, sessionId } = req.body;
+      
+      // Get order details
+      const order = await storage.getOrderById(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // In production, this would redirect to KNET payment gateway
+      // For now, we simulate a successful payment
+      // KNET integration requires:
+      // 1. Merchant ID from KNET
+      // 2. Transport Key
+      // 3. Resource Key
+      // The actual flow would redirect to: https://kpay.com.kw/kpg/PaymentHTTP.htm
+      
+      // Simulate successful payment - Update order status
+      await storage.updateOrderStatus(orderId, "confirmed", "paid");
+      
+      // Clear cart
+      await storage.clearCart(sessionId);
+      
+      // In real KNET integration, return the redirect URL
+      // For demo, we return success directly
+      res.json({ 
+        success: true, 
+        orderId,
+        // redirectUrl would be the KNET payment page URL in production
+        // redirectUrl: `https://kpay.com.kw/kpg/PaymentHTTP.htm?...`
+      });
+    } catch (error: any) {
+      console.error("KNET payment error:", error);
+      res.status(500).json({ error: error.message || "Payment processing failed" });
+    }
+  });
+
   // Admin product management
   app.post("/api/admin/products", requireAdmin, async (req: Request, res: Response) => {
     try {
