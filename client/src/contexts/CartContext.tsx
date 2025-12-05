@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import type { Product } from "@shared/schema";
 
 interface CartItem {
@@ -16,13 +16,45 @@ interface CartContextType {
   totalPrice: number;
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
+  sessionId: string;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+function generateSessionId(): string {
+  return 'cart_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [sessionId, setSessionId] = useState<string>("");
+
+  useEffect(() => {
+    let storedSessionId = localStorage.getItem("cartSessionId");
+    if (!storedSessionId) {
+      storedSessionId = generateSessionId();
+      localStorage.setItem("cartSessionId", storedSessionId);
+    }
+    setSessionId(storedSessionId);
+    
+    const storedCart = localStorage.getItem("cart");
+    if (storedCart) {
+      try {
+        setItems(JSON.parse(storedCart));
+      } catch {
+        setItems([]);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (items.length > 0) {
+      localStorage.setItem("cart", JSON.stringify(items));
+    } else {
+      localStorage.removeItem("cart");
+    }
+  }, [items]);
 
   const addToCart = (product: Product) => {
     setItems((prev) => {
@@ -57,6 +89,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clearCart = () => {
     setItems([]);
+    localStorage.removeItem("cart");
   };
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -77,6 +110,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         totalPrice,
         isCartOpen,
         setIsCartOpen,
+        sessionId,
       }}
     >
       {children}

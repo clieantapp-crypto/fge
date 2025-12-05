@@ -1,17 +1,43 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCartItemSchema } from "@shared/schema";
+import { insertCartItemSchema, insertAddressSchema, insertOrderSchema, insertOrderItemSchema, insertProductSchema } from "@shared/schema";
 import { z } from "zod";
+import Stripe from "stripe";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2025-04-30.basil",
+});
+
+// Simple session-based auth check
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  const adminSession = req.headers["x-admin-session"];
+  if (!adminSession) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+}
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
-  // Get all products
+  // Get all products with optional search/filter
   app.get("/api/products", async (req: Request, res: Response) => {
     try {
+      const { search, category, minPrice, maxPrice } = req.query;
+      
+      if (search || category || minPrice || maxPrice) {
+        const products = await storage.searchProducts(
+          search as string || "",
+          category as string,
+          minPrice ? parseFloat(minPrice as string) : undefined,
+          maxPrice ? parseFloat(maxPrice as string) : undefined
+        );
+        return res.json(products);
+      }
+      
       const products = await storage.getAllProducts();
       res.json(products);
     } catch (error) {
@@ -132,6 +158,206 @@ export async function registerRoutes(
     } catch (error) {
       res.status(500).json({ error: "Failed to clear cart" });
     }
+  });
+
+  // Auth routes
+  app.post("/api/auth/login", async (req: Request, res: Response) => {
+    try {
+      const { username, password } = req.body;
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user || user.password !== password) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      
+      // Return user info with a simple session token
+      const sessionToken = Buffer.from(`${user.id}:${Date.now()}`).toString("base64");
+      res.json({ 
+        user: { 
+          id: user.id, 
+          username: user.username, 
+          email: user.email,
+          role: user.role 
+        }, 
+        token: sessionToken 
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Orders routes
+  app.get("/api/orders", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const orders = await storage.getOrders();
+      const ordersWithItems = await Promise.all(
+        orders.map(async (order) => {
+          const items = await storage.getOrderItems(order.id);
+          const itemsWithProducts = await Promise.all(
+            items.map(async (item) => {
+              const product = await storage.getProductById(item.productId);
+              return { ...item, product };
+            })
+          );
+          const address = order.addressId ? await storage.getAddressById(order.addressId) : null;
+          return { ...order, items: itemsWithProducts, address };
+        })
+      );
+      res.json(ordersWithItems);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch orders" });
+    }
+  });
+
+  app.get("/api/orders/:id", async (req: Request, res: Response) => {
+    try {
+      const order = await storage.getOrderById(req.params.id);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      const items = await storage.getOrderItems(order.id);
+      const itemsWithProducts = await Promise.all(
+        items.map(async (item) => {
+          const product = await storage.getProductById(item.productId);
+          return { ...item, product };
+        })
+      );
+      const address = order.addressId ? await storage.getAddressById(order.addressId) : null;
+      res.json({ ...order, items: itemsWithProducts, address });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch order" });
+    }
+  });
+
+  app.patch("/api/orders/:id/status", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { status, paymentStatus } = req.body;
+      const order = await storage.updateOrderStatus(req.params.id, status, paymentStatus);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      res.json(order);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update order status" });
+    }
+  });
+
+  // Stripe checkout
+  app.post("/api/checkout/create-payment-intent", async (req: Request, res: Response) => {
+    try {
+      const { amount, sessionId, customerEmail, customerPhone, shippingAddress } = req.body;
+      
+      // Create order first
+      const order = await storage.createOrder({
+        status: "pending",
+        totalAmount: amount.toString(),
+        paymentMethod: "card",
+        paymentStatus: "pending",
+        guestEmail: customerEmail,
+        guestPhone: customerPhone,
+        userId: null,
+        addressId: null,
+        stripeSessionId: null,
+        notes: shippingAddress ? JSON.stringify(shippingAddress) : null,
+      });
+
+      // Get cart items and create order items
+      const cartItems = await storage.getCartItems(sessionId);
+      for (const item of cartItems) {
+        const product = await storage.getProductById(item.productId);
+        if (product) {
+          await storage.createOrderItem({
+            orderId: order.id,
+            productId: item.productId,
+            quantity: item.quantity,
+            priceAtTime: product.price,
+            nameArAtTime: product.nameAr,
+            nameEnAtTime: product.nameEn,
+          });
+        }
+      }
+
+      // Create Stripe PaymentIntent
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(parseFloat(amount) * 1000), // Convert KWD to fils
+        currency: "kwd",
+        metadata: {
+          orderId: order.id,
+          sessionId,
+        },
+        receipt_email: customerEmail,
+      });
+
+      // Update order with stripe session
+      await storage.updateOrderStatus(order.id, "pending", "processing");
+
+      res.json({
+        clientSecret: paymentIntent.client_secret,
+        orderId: order.id,
+      });
+    } catch (error: any) {
+      console.error("Checkout error:", error);
+      res.status(500).json({ error: error.message || "Checkout failed" });
+    }
+  });
+
+  app.post("/api/checkout/confirm", async (req: Request, res: Response) => {
+    try {
+      const { orderId, sessionId } = req.body;
+      
+      // Update order status
+      await storage.updateOrderStatus(orderId, "confirmed", "paid");
+      
+      // Clear cart
+      await storage.clearCart(sessionId);
+      
+      res.json({ success: true, orderId });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to confirm order" });
+    }
+  });
+
+  // Admin product management
+  app.post("/api/admin/products", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const validation = insertProductSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error.errors });
+      }
+      const product = await storage.createProduct(validation.data);
+      res.status(201).json(product);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create product" });
+    }
+  });
+
+  app.patch("/api/admin/products/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const product = await storage.updateProduct(req.params.id, req.body);
+      if (!product) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      res.json(product);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update product" });
+    }
+  });
+
+  app.delete("/api/admin/products/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const success = await storage.deleteProduct(req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete product" });
+    }
+  });
+
+  // Stripe config for frontend
+  app.get("/api/config/stripe", (req: Request, res: Response) => {
+    res.json({ publishableKey: process.env.STRIPE_PUBLISHABLE_KEY });
   });
 
   return httpServer;

@@ -2,6 +2,7 @@ import { X, Plus, Minus, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCart } from "@/contexts/CartContext";
+import { useLocation } from "wouter";
 
 export default function CartSlideOut() {
   const { t, language, isRTL } = useLanguage();
@@ -13,6 +14,12 @@ export default function CartSlideOut() {
     isCartOpen,
     setIsCartOpen,
   } = useCart();
+  const [, setLocation] = useLocation();
+
+  const handleCheckout = () => {
+    setIsCartOpen(false);
+    setLocation("/checkout");
+  };
 
   if (!isCartOpen) return null;
 
@@ -171,6 +178,7 @@ export default function CartSlideOut() {
 
             <Button
               className="w-full rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3"
+              onClick={handleCheckout}
               data-testid="button-checkout"
             >
               {t("الدفع", "Checkout")}
