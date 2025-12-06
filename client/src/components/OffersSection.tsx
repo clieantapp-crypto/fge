@@ -37,7 +37,11 @@ export default function OffersSection() {
   if (isLoading || saleProducts.length === 0) return null;
 
   return (
-    <section className="py-12 bg-gradient-to-b from-red-50 to-background dark:from-red-950/20 dark:to-background" dir={isRTL ? "rtl" : "ltr"}>
+    <section
+      id="products"
+      className="py-12 bg-gradient-to-b from-red-50 to-background dark:from-red-950/20 dark:to-background"
+      dir={isRTL ? "rtl" : "ltr"}
+    >
       <div className="container mx-auto px-4 md:px-8">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
@@ -49,25 +53,32 @@ export default function OffersSection() {
                 {t("عروض خاصة", "Special Offers")}
               </h2>
               <p className="text-muted-foreground text-sm">
-                {t("خصومات حصرية لفترة محدودة", "Exclusive discounts for limited time")}
+                {t(
+                  "خصومات حصرية لفترة محدودة",
+                  "Exclusive discounts for limited time",
+                )}
               </p>
             </div>
           </div>
           <div className="hidden md:flex items-center gap-2 text-red-500 bg-red-100 dark:bg-red-950/30 px-4 py-2 rounded-full">
             <Clock className="h-4 w-4" />
-            <span className="text-sm font-medium">{t("عرض لفترة محدودة", "Limited Time Offer")}</span>
+            <span className="text-sm font-medium">
+              {t("عرض لفترة محدودة", "Limited Time Offer")}
+            </span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {saleProducts.map((product) => {
-            const originalPrice = product.originalPrice ? parseFloat(product.originalPrice) : null;
+            const originalPrice = product.originalPrice
+              ? parseFloat(product.originalPrice)
+              : null;
             const currentPrice = parseFloat(product.price);
             const discount = product.discountPercent || 0;
 
             return (
-              <Card 
-                key={product.id} 
+              <Card
+                key={product.id}
                 className="group relative overflow-visible border-red-200 dark:border-red-900/30"
                 data-testid={`offer-card-${product.id}`}
               >
@@ -84,7 +95,10 @@ export default function OffersSection() {
                     className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                   <div className="absolute top-3 start-3">
-                    <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300">
+                    <Badge
+                      variant="secondary"
+                      className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                    >
                       <Tag className="h-3 w-3 me-1" />
                       {t("عرض", "Sale")}
                     </Badge>
@@ -109,7 +123,9 @@ export default function OffersSection() {
 
                   {originalPrice && (
                     <div className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs px-2 py-1 rounded mb-3 inline-block">
-                      {t("وفر", "Save")} {(originalPrice - currentPrice).toFixed(3)} {t("د.ك", "KWD")}
+                      {t("وفر", "Save")}{" "}
+                      {(originalPrice - currentPrice).toFixed(3)}{" "}
+                      {t("د.ك", "KWD")}
                     </div>
                   )}
 

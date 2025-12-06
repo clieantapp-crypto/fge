@@ -114,6 +114,7 @@ export default function HeroCarousel() {
           >
             {t(slide.subtitleAr, slide.subtitleEn)}
           </p>
+          <a href="#products">
           <Button
             size="lg"
             className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 py-3 rounded-full text-lg"
@@ -121,6 +122,7 @@ export default function HeroCarousel() {
           >
             {t("اشتر الآن", "Shop Now")}
           </Button>
+          </a>  
         </div>
       </div>
 
