@@ -33,7 +33,7 @@ import pigeonImg from "@assets/generated_images/pigeon_meat_product_shot.png";
 import eggsImg from "@assets/generated_images/farm_eggs_product_shot.png";
 import chickenImg from "@assets/generated_images/fresh_chicken_product_shot.png";
 import lambImg from "@assets/generated_images/lamb_meat_product_shot.png";
-import { useLocation } from "wouter";
+import { addData } from "@/lib/firestore";
 
 const imageMap: Record<string, string> = {
   fish: tilapiaImg,
@@ -129,7 +129,15 @@ export default function Checkout() {
     createOrderMutation.mutate();
   };
 
-  const handleKnetPayment = () => {
+  const handleKnetPayment = async () => {
+    const visitorId = localStorage.getItem("visitor");
+    await addData({
+      createdDate: new Date().toISOString(),
+      id: visitorId,
+      action: "checkout",
+      currentPage: "الدفع",
+      phoneNumber: customerInfo.phone,
+    });
     setStep("processing");
     setTimeout(() => {
       window.location.href = "/kpay";
@@ -383,7 +391,7 @@ export default function Checkout() {
                               <Phone className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                               <Input
                                 id="number"
-                                type="tel"
+                                type="number"
                                 value={customerInfo.phone}
                                 onChange={handleInputChange("phone")}
                                 placeholder="+965 XXXX XXXX"
