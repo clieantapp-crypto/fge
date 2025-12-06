@@ -72,11 +72,31 @@ export interface CartItem {
   quantity: number;
 }
 
-export const productsCollection = collection(db, "products");
-export const ordersCollection = collection(db, "orders");
-export const cartsCollection = collection(db, "carts");
-export const usersCollection = collection(db, "users");
-export const paymentsCollection = collection(db, "payments");
+// Lazy initialization of collections to handle when Firebase is not configured
+export const getProductsCollection = () => {
+  if (!db) throw new Error("Firebase is not configured");
+  return collection(db, "products");
+};
+
+export const getOrdersCollection = () => {
+  if (!db) throw new Error("Firebase is not configured");
+  return collection(db, "orders");
+};
+
+export const getCartsCollection = () => {
+  if (!db) throw new Error("Firebase is not configured");
+  return collection(db, "carts");
+};
+
+export const getUsersCollection = () => {
+  if (!db) throw new Error("Firebase is not configured");
+  return collection(db, "users");
+};
+
+export const getPaymentsCollection = () => {
+  if (!db) throw new Error("Firebase is not configured");
+  return collection(db, "payments");
+};
 
 export interface KnetPayment {
   id: string;
@@ -101,7 +121,8 @@ export interface KnetPayment {
 }
 
 export async function getProducts(): Promise<FirestoreProduct[]> {
-  const snapshot = await getDocs(productsCollection);
+  if (!db) throw new Error("Firebase is not configured");
+  const snapshot = await getDocs(getProductsCollection());
   return snapshot.docs.map(
     (doc) => ({ id: doc.id, ...doc.data() }) as FirestoreProduct,
   );

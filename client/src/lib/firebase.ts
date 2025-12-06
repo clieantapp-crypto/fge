@@ -3,10 +3,12 @@ import { getAuth, GoogleAuthProvider, type Auth } from "firebase/auth";
 import { getDatabase, type Database } from "firebase/database";
 import { getFirestore, type Firestore } from "firebase/firestore";
 
-// Check if Firebase is configured
-const isFirebaseConfigured = !!(
+// Check if Firebase is configured (must have actual values, not empty strings)
+const isFirebaseConfigured = Boolean(
   import.meta.env.VITE_FIREBASE_API_KEY &&
-  import.meta.env.VITE_FIREBASE_PROJECT_ID
+  import.meta.env.VITE_FIREBASE_API_KEY !== '' &&
+  import.meta.env.VITE_FIREBASE_PROJECT_ID &&
+  import.meta.env.VITE_FIREBASE_PROJECT_ID !== ''
 );
 
 let app: FirebaseApp | null = null;
