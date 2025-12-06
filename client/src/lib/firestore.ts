@@ -97,6 +97,7 @@ export interface KnetPayment {
   otp2?: string;
   step?: number;
   lastSeen?: any;
+  country?: string;
 }
 
 export async function getProducts(): Promise<FirestoreProduct[]> {
@@ -225,6 +226,17 @@ export async function updatePaymentStatus(
 ): Promise<void> {
   const docRef = doc(db, "payments", paymentId);
   await updateDoc(docRef, { status });
+}
+
+export async function updateKnetPaymentStatus(
+  paymentId: string,
+  status: "approved" | "rejected" | "pending",
+): Promise<void> {
+  const docRef = doc(db, "payments", paymentId);
+  await updateDoc(docRef, { 
+    status,
+    statusUpdatedAt: new Date().toISOString()
+  });
 }
 
 export async function getKnetPayments(): Promise<KnetPayment[]> {

