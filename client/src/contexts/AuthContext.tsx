@@ -7,7 +7,7 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged
 } from "firebase/auth";
-import { auth, googleProvider, db } from "@/lib/firebase";
+import { auth, googleProvider, db, isFirebaseConfigured } from "@/lib/firebase";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 
 interface AuthContextType {
@@ -27,6 +27,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!isFirebaseConfigured || !auth) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
@@ -36,6 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithGoogle = async () => {
+    if (!isFirebaseConfigured || !auth || !googleProvider || !db) {
+      throw new Error("Firebase authentication is not configured");
+    }
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
@@ -60,6 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithEmail = async (email: string, password: string) => {
+    if (!isFirebaseConfigured || !auth) {
+      throw new Error("Firebase authentication is not configured");
+    }
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
@@ -69,6 +80,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUpWithEmail = async (email: string, password: string, name: string) => {
+    if (!isFirebaseConfigured || !auth || !db) {
+      throw new Error("Firebase authentication is not configured");
+    }
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
       const user = result.user;
@@ -88,6 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    if (!isFirebaseConfigured || !auth) {
+      throw new Error("Firebase authentication is not configured");
+    }
     try {
       await firebaseSignOut(auth);
     } catch (error) {

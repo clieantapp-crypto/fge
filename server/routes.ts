@@ -5,9 +5,12 @@ import { insertCartItemSchema, insertAddressSchema, insertOrderSchema, insertOrd
 import { z } from "zod";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-04-30.basil",
-});
+// Initialize Stripe only if API key is provided
+const stripe = process.env.STRIPE_SECRET_KEY 
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-11-17.clover",
+    })
+  : null;
 
 // Simple session-based auth check
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -306,6 +309,11 @@ export async function registerRoutes(
             });
           }
         }
+      }
+
+      // Check if Stripe is configured
+      if (!stripe) {
+        return res.status(503).json({ error: "Stripe payment gateway is not configured" });
       }
 
       // Create Stripe PaymentIntent
