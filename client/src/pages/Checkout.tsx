@@ -33,6 +33,7 @@ import pigeonImg from "@assets/generated_images/pigeon_meat_product_shot.png";
 import eggsImg from "@assets/generated_images/farm_eggs_product_shot.png";
 import chickenImg from "@assets/generated_images/fresh_chicken_product_shot.png";
 import lambImg from "@assets/generated_images/lamb_meat_product_shot.png";
+import { useLocation } from "wouter";
 
 const imageMap: Record<string, string> = {
   fish: tilapiaImg,
@@ -61,6 +62,7 @@ export default function Checkout() {
   const { items, totalPrice, sessionId, totalItems, clearCart } = useCart();
   const [step, setStep] = useState<"info" | "payment" | "processing" | "success">("info");
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [, setLocation] = useLocation();
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
     name: "",
     email: "",
@@ -124,6 +126,7 @@ export default function Checkout() {
   const handleInfoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createOrderMutation.mutate();
+    
   };
 
   const handleKnetPayment = () => {
