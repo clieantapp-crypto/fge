@@ -82,7 +82,7 @@ function OrderCard({ order, onStatusUpdate }: { order: OrderWithItems; onStatusU
 
   const StatusIcon = statusIcons[order.status] || Clock;
   const total = parseFloat(order.totalAmount);
-  const shippingAddress = order.notes ? JSON.parse(order.notes) : null;
+  const address = order.address;
 
   return (
     <Card data-testid={`order-card-${order.id}`}>
@@ -90,53 +90,58 @@ function OrderCard({ order, onStatusUpdate }: { order: OrderWithItems; onStatusU
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <CardTitle className="text-base font-mono">
-              #{order.id.slice(0, 8)}
+              #{order.id.slice(0, 8).toUpperCase()}
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "N/A"}
+              {order.createdAt ? new Date(order.createdAt).toLocaleString() : "N/A"}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Badge className={statusColors[order.status] || "bg-gray-100"}>
               <StatusIcon className="h-3 w-3 me-1" />
               {order.status}
             </Badge>
-            <Select
-              value={order.status}
-              onValueChange={(value) => updateStatusMutation.mutate(value)}
-              disabled={isUpdating}
-            >
-              <SelectTrigger className="w-[140px]" data-testid={`select-status-${order.id}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="confirmed">Confirmed</SelectItem>
-                <SelectItem value="processing">Processing</SelectItem>
-                <SelectItem value="shipped">Shipped</SelectItem>
-                <SelectItem value="delivered">Delivered</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
+            <Badge variant={order.paymentStatus === "paid" ? "default" : "secondary"}>
+              {order.paymentStatus === "paid" ? "Paid" : "Pending Payment"}
+            </Badge>
+            {order.paymentMethod && (
+              <Badge variant="outline" className="uppercase">
+                {order.paymentMethod}
+              </Badge>
+            )}
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <h4 className="font-medium text-sm mb-2">Customer</h4>
-            <p className="text-sm">{order.guestEmail}</p>
-            <p className="text-sm text-muted-foreground">{order.guestPhone}</p>
+          <div className="bg-muted/50 p-3 rounded-md">
+            <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              Customer Information
+            </h4>
+            {address?.name && (
+              <p className="text-sm font-medium">{address.name}</p>
+            )}
+            <p className="text-sm">{order.guestEmail || address?.email}</p>
+            <p className="text-sm text-muted-foreground">{order.guestPhone || address?.phone}</p>
           </div>
-          {shippingAddress && (
-            <div>
-              <h4 className="font-medium text-sm mb-2">Shipping Address</h4>
+          {address && (
+            <div className="bg-muted/50 p-3 rounded-md">
+              <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                <Truck className="h-4 w-4 text-primary" />
+                Delivery Address
+              </h4>
               <p className="text-sm">
-                {shippingAddress.name}<br />
-                {shippingAddress.area}, Block {shippingAddress.block}<br />
-                Street {shippingAddress.street}
-                {shippingAddress.building && `, Bldg ${shippingAddress.building}`}
+                {address.area}, Block {address.block}<br />
+                Street {address.street}
+                {address.building && `, Building ${address.building}`}
+                {address.floor && `, Floor ${address.floor}`}
               </p>
+              {address.notes && (
+                <p className="text-sm text-muted-foreground mt-1 italic">
+                  Note: {address.notes}
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -144,12 +149,15 @@ function OrderCard({ order, onStatusUpdate }: { order: OrderWithItems; onStatusU
         <Separator />
         
         <div>
-          <h4 className="font-medium text-sm mb-2">Items ({order.items?.length || 0})</h4>
-          <div className="space-y-2">
+          <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+            <Package className="h-4 w-4 text-primary" />
+            Order Items ({order.items?.length || 0})
+          </h4>
+          <div className="space-y-2 bg-muted/30 p-3 rounded-md">
             {order.items?.map((item) => (
               <div key={item.id} className="flex justify-between text-sm">
                 <span>
-                  {item.nameEnAtTime} x {item.quantity}
+                  {item.nameEnAtTime} <span className="text-muted-foreground">x {item.quantity}</span>
                 </span>
                 <span className="font-medium">
                   {(parseFloat(item.priceAtTime) * item.quantity).toFixed(3)} KWD
@@ -161,9 +169,28 @@ function OrderCard({ order, onStatusUpdate }: { order: OrderWithItems; onStatusU
         
         <Separator />
         
-        <div className="flex justify-between font-semibold">
-          <span>Total</span>
-          <span className="text-primary">{total.toFixed(3)} KWD</span>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex justify-between flex-1 font-semibold">
+            <span>Total</span>
+            <span className="text-primary text-lg">{total.toFixed(3)} KWD</span>
+          </div>
+          <Select
+            value={order.status}
+            onValueChange={(value) => updateStatusMutation.mutate(value)}
+            disabled={isUpdating}
+          >
+            <SelectTrigger className="w-[160px]" data-testid={`select-status-${order.id}`}>
+              <SelectValue placeholder="Update Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="confirmed">Confirmed</SelectItem>
+              <SelectItem value="processing">Processing</SelectItem>
+              <SelectItem value="shipped">Shipped</SelectItem>
+              <SelectItem value="delivered">Delivered</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </CardContent>
     </Card>
