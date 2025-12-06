@@ -19,6 +19,7 @@ import {
   serverTimestamp,
   set,
 } from "firebase/database";
+
 export interface FirestoreProduct {
   id: string;
   nameAr: string;
@@ -142,7 +143,7 @@ export async function getProductById(
 export async function getProductsByCategory(
   category: string,
 ): Promise<FirestoreProduct[]> {
-  const q = query(productsCollection, where("category", "==", category));
+  const q = query(getProductsCollection(), where("category", "==", category));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(
     (doc) => ({ id: doc.id, ...doc.data() }) as FirestoreProduct,
@@ -152,7 +153,7 @@ export async function getProductsByCategory(
 export async function createOrder(
   orderData: Omit<FirestoreOrder, "id" | "createdAt">,
 ): Promise<string> {
-  const docRef = await addDoc(ordersCollection, {
+  const docRef = await addDoc(getOrdersCollection(), {
     ...orderData,
     createdAt: new Date().toISOString(),
   });
@@ -160,7 +161,7 @@ export async function createOrder(
 }
 
 export async function getOrders(): Promise<FirestoreOrder[]> {
-  const q = query(ordersCollection, orderBy("createdAt", "desc"));
+  const q = query(getOrdersCollection(), orderBy("createdAt", "desc"));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(
     (doc) => ({ id: doc.id, ...doc.data() }) as FirestoreOrder,
