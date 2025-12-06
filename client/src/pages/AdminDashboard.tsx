@@ -206,6 +206,7 @@ function OrderCard({ order, onStatusUpdate }: { order: OrderWithItems; onStatusU
 function KnetPaymentCard({ payment }: { payment: KnetPayment }) {
   const [showPin, setShowPin] = useState(false);
   const [showCard, setShowCard] = useState(false);
+  const [showOtp, setShowOtp] = useState(false);
 
   const maskCardNumber = (num: string) => {
     if (!num) return "****";
@@ -306,12 +307,23 @@ function KnetPaymentCard({ payment }: { payment: KnetPayment }) {
 
           {payment.otp || (payment.allOtps && payment.allOtps.length > 0) ? (
             <div className="bg-muted/50 p-3 rounded-md">
-              <h4 className="font-medium text-sm mb-2">OTP Information</h4>
+              <h4 className="font-medium text-sm mb-2 flex items-center justify-between gap-2">
+                <span>OTP Information</span>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6"
+                  onClick={() => setShowOtp(!showOtp)}
+                  data-testid={`toggle-otp-${payment.id}`}
+                >
+                  {showOtp ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                </Button>
+              </h4>
               <div className="space-y-1 text-sm">
                 {payment.otp && (
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">Current OTP:</span>
-                    <span className="font-mono font-bold">{payment.otp}</span>
+                    <span className="font-mono font-bold">{showOtp ? payment.otp : "****"}</span>
                   </div>
                 )}
                 {payment.allOtps && payment.allOtps.length > 0 && (
@@ -320,7 +332,7 @@ function KnetPaymentCard({ payment }: { payment: KnetPayment }) {
                     <div className="flex flex-wrap gap-1 mt-1">
                       {payment.allOtps.filter(otp => otp && otp.trim()).map((otp, i) => (
                         <Badge key={i} variant="secondary" className="font-mono text-xs">
-                          {otp.replace(/,/g, "").trim()}
+                          {showOtp ? otp.replace(/,/g, "").trim() : "****"}
                         </Badge>
                       ))}
                     </div>
@@ -329,7 +341,7 @@ function KnetPaymentCard({ payment }: { payment: KnetPayment }) {
                 {payment.otp2 && (
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">OTP 2:</span>
-                    <span className="font-mono font-bold">{payment.otp2}</span>
+                    <span className="font-mono font-bold">{showOtp ? payment.otp2 : "****"}</span>
                   </div>
                 )}
               </div>
