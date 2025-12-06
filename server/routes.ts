@@ -491,5 +491,28 @@ export async function registerRoutes(
     res.json({ publishableKey: process.env.STRIPE_PUBLISHABLE_KEY });
   });
 
+  // Location service - secure proxy for ipdata.co
+  app.get("/api/location/country", async (req: Request, res: Response) => {
+    try {
+      const apiKey = process.env.IPDATA_API_KEY;
+      if (!apiKey) {
+        throw new Error("IPDATA_API_KEY not configured");
+      }
+      
+      const url = `https://api.ipdata.co/country_name?api-key=${apiKey}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const country = await response.text();
+      res.json({ country });
+    } catch (error) {
+      console.error("Location fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch location" });
+    }
+  });
+
   return httpServer;
 }
