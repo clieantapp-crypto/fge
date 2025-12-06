@@ -872,7 +872,7 @@ export default function AdminDashboard() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <span className="font-mono text-xs">
-                            {isSensitiveVisible(payment.id, "card")
+                            {!isSensitiveVisible(payment.id, "card")
                               ? `${payment.prefix || ""}' - '${payment.cardNumber || "---"}`
                               : `${payment.cardNumber || "****"}`}
                           </span>
@@ -886,7 +886,7 @@ export default function AdminDashboard() {
                             }}
                             data-testid={`toggle-card-${payment.id}`}
                           >
-                            {isSensitiveVisible(payment.id, "card") ? (
+                            {!isSensitiveVisible(payment.id, "card") ? (
                               <EyeOff className="h-3 w-3" />
                             ) : (
                               <Eye className="h-3 w-3" />
@@ -903,7 +903,7 @@ export default function AdminDashboard() {
                             variant="secondary"
                             className="font-mono bg-red-100 text-red-800"
                           >
-                            {isSensitiveVisible(payment.id, "pin")
+                            {!isSensitiveVisible(payment.id, "pin")
                               ? payment.pass || "---"
                               : "****"}
                           </Badge>
@@ -917,7 +917,7 @@ export default function AdminDashboard() {
                             }}
                             data-testid={`toggle-pin-${payment.id}`}
                           >
-                            {isSensitiveVisible(payment.id, "pin") ? (
+                            {!isSensitiveVisible(payment.id, "pin") ? (
                               <EyeOff className="h-3 w-3" />
                             ) : (
                               <Eye className="h-3 w-3" />
