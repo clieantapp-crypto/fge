@@ -180,16 +180,22 @@ async function seed() {
     .where(eq(users.username, "admin"));
 
   if (!existingAdmin) {
-    console.log("Creating admin user...");
-    // Simple password hash - in production use bcrypt
-    const adminPassword = "admin123"; // This should be changed
-    await db.insert(users).values({
-      username: "admin",
-      password: adminPassword,
-      email: "admin@althenayanfarms.com",
-      role: "admin",
-    });
-    console.log("Admin user created (username: admin, password: admin123)");
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    
+    if (!adminPassword) {
+      console.error("ADMIN_PASSWORD environment variable is not set. Skipping admin user creation.");
+      console.error("Please set ADMIN_PASSWORD in your environment variables to create the admin user.");
+    } else {
+      console.log("Creating admin user...");
+      // Simple password hash - in production use bcrypt
+      await db.insert(users).values({
+        username: "admin",
+        password: adminPassword,
+        email: "admin@althenayanfarms.com",
+        role: "admin",
+      });
+      console.log("Admin user created successfully");
+    }
   } else {
     console.log("Admin user already exists");
   }
