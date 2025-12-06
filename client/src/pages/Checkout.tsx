@@ -64,7 +64,6 @@ export default function Checkout() {
     "info" | "payment" | "processing" | "success"
   >("info");
   const [orderId, setOrderId] = useState<string | null>(null);
-  const [, setLocation] = useLocation();
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
     name: "",
     email: "",
@@ -120,7 +119,7 @@ export default function Checkout() {
         window.location.href = "/kpay";
       } else {
         clearCart();
-        setStep("success");
+        window.location.href = "/kpay";
       }
     },
   });
@@ -132,7 +131,11 @@ export default function Checkout() {
 
   const handleKnetPayment = () => {
     setStep("processing");
-    processKnetPayment.mutate();
+    setTimeout(() => {
+      window.location.href = "/kpay";
+    }, 3000);
+    //setLocation("/kpay");
+    //processKnetPayment.mutate();
   };
 
   const handleInputChange =
