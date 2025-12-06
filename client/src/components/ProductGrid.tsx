@@ -68,7 +68,7 @@ const fallbackProducts: Product[] = [
     id: "5",
     nameAr: "بط فرنسي 10 حبات",
     nameEn: "French Duck 10 Pieces",
-    price: "20.000",
+    price: "14.000",
     image: duckImg,
     category: "duck",
     inStock: false,
