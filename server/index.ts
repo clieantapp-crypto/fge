@@ -22,6 +22,25 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// Health check endpoint - must be FIRST before any other routes
+// Returns immediately for fast health check responses
+app.get("/health", (_req, res) => {
+  res.status(200).send("OK");
+});
+
+// Root health check for deployment - responds before static files
+app.get("/", (_req, res, next) => {
+  // In production, let static files handle it after responding to health check
+  if (process.env.NODE_ENV === "production") {
+    // Check if this is a health check (no accept header for HTML)
+    const acceptHeader = _req.headers.accept || "";
+    if (!acceptHeader.includes("text/html")) {
+      return res.status(200).send("OK");
+    }
+  }
+  next();
+});
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
