@@ -71,7 +71,7 @@ const fallbackProducts: Product[] = [
     price: "14.000",
     image: duckImg,
     category: "duck",
-    inStock: false,
+    inStock: true,
     unit: "piece",
   },
   {
@@ -81,7 +81,7 @@ const fallbackProducts: Product[] = [
     price: "8.000",
     image: duckImg,
     category: "duck",
-    inStock: false,
+    inStock: true,
     unit: "piece",
   },
   {
