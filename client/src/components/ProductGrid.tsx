@@ -165,21 +165,26 @@ function ProductSkeleton() {
 export default function ProductGrid() {
   const { t } = useLanguage();
 
-  const { data: apiProducts, isLoading, isError, refetch } = useQuery<Product[]>({
+  const {
+    data: apiProducts,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery<Product[]>({
     queryKey: ["/api/products"],
     retry: 2,
     staleTime: 30000,
   });
 
-  const products = apiProducts?.length 
-    ? apiProducts.map(product => ({
+  const products = apiProducts?.length
+    ? apiProducts.map((product) => ({
         ...product,
-        image: imageMap[product.category] || tilapiaImg
+        image: imageMap[product.category] || tilapiaImg,
       }))
     : fallbackProducts;
 
   return (
-    <section className="py-12 md:py-16 lg:py-24 bg-background">
+    <section className="py-12 md:py-16 lg:py-24 bg-background" id="products">
       <div className="container mx-auto px-4 md:px-8 lg:px-12">
         <h2
           className="text-2xl md:text-3xl font-bold text-foreground text-center mb-8 md:mb-12"
@@ -205,11 +210,11 @@ export default function ProductGrid() {
             <p className="text-muted-foreground mb-4">
               {t(
                 "لم نتمكن من تحميل المنتجات. يرجى المحاولة مرة أخرى.",
-                "We couldn't load the products. Please try again."
+                "We couldn't load the products. Please try again.",
               )}
             </p>
-            <Button 
-              onClick={() => refetch()} 
+            <Button
+              onClick={() => refetch()}
               className="rounded-full"
               data-testid="button-retry-products"
             >
