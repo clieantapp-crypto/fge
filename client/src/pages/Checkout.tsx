@@ -102,7 +102,7 @@ export default function Checkout() {
     },
     onSuccess: (data: any) => {
       setOrderId(data.orderId);
-      localStorage.setItem("amount", data.amount  );
+      localStorage.setItem("amount", totalPrice.toString());
       setStep("payment");
     },
   });
