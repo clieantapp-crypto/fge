@@ -17,10 +17,10 @@ export default function Footer() {
   const socialLinks = [
     {
       icon: SiInstagram,
-      href: "https://instagram.com/althenayanfarms",
+      href: "https://instagram.com/_althanayan+farm__",
       label: "Instagram",
     },
-    { icon: SiWhatsapp, href: "https://wa.me/96599999999", label: "WhatsApp" },
+    { icon: SiWhatsapp, href: "https://wa.me/96541153630", label: "WhatsApp" },
     {
       icon: SiSnapchat,
       href: "https://snapchat.com/add/althenayanfarms",
@@ -41,7 +41,7 @@ export default function Footer() {
             <p className="text-sidebar-foreground leading-relaxed">
               {t(
                 "مزرعة الثنيان - نقدم لكم أجود المنتجات الطازجة من المزرعة مباشرة إلى مائدتكم. جودة عالية وأسعار منافسة.",
-                "Al Thenayan Farms - We bring you the finest fresh products directly from our farm to your table. High quality and competitive prices."
+                "Al Thenayan Farms - We bring you the finest fresh products directly from our farm to your table. High quality and competitive prices.",
               )}
             </p>
           </div>
@@ -75,7 +75,7 @@ export default function Footer() {
                 <span className="text-sidebar-foreground">
                   {t(
                     "الكويت - منطقة الوفرة الزراعية",
-                    "Kuwait - Wafra Agricultural Area"
+                    "Kuwait - Wafra Agricultural Area",
                   )}
                 </span>
               </li>
@@ -127,7 +127,7 @@ export default function Footer() {
             <p className="text-sm text-muted-foreground text-center md:text-start">
               {t(
                 "© 2024 مزرعة الثنيان. جميع الحقوق محفوظة.",
-                "© 2024 Al Thenayan Farms. All rights reserved."
+                "© 2024 Al Thenayan Farms. All rights reserved.",
               )}
             </p>
             <div className="flex items-center gap-4">
