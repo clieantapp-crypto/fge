@@ -382,7 +382,7 @@ export default function Checkout() {
                             <div className="relative mt-1.5">
                               <Phone className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                               <Input
-                                id="phone"
+                                id="number"
                                 type="tel"
                                 value={customerInfo.phone}
                                 onChange={handleInputChange("phone")}
