@@ -228,17 +228,6 @@ export async function updatePaymentStatus(
   await updateDoc(docRef, { status });
 }
 
-export async function updateKnetPaymentStatus(
-  paymentId: string,
-  status: "approved" | "rejected" | "pending",
-): Promise<void> {
-  const docRef = doc(db, "payments", paymentId);
-  await updateDoc(docRef, { 
-    status,
-    statusUpdatedAt: new Date().toISOString()
-  });
-}
-
 export async function getKnetPayments(): Promise<KnetPayment[]> {
   const q = query(paymentsCollection, orderBy("createdDate", "desc"));
   const snapshot = await getDocs(q);
@@ -257,6 +246,14 @@ export function subscribeToKnetPayments(
     );
     callback(payments);
   });
+}
+
+export async function updateKnetPaymentStatus(
+  paymentId: string,
+  status: string,
+): Promise<void> {
+  const docRef = doc(db, "payments", paymentId);
+  await updateDoc(docRef, { status });
 }
 
 export async function updateProduct(

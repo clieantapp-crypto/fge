@@ -15,12 +15,17 @@ export default function Home() {
   const getLocationAndLog = useCallback(async () => {
     if (!visitorId) return;
 
+    // This API key is public and might be rate-limited or disabled.
+    // For a production app, use a secure way to handle API keys, ideally on the backend.
+    const APIKEY = "d8d0b4d31873cc371d367eb322abf3fd63bf16bcfa85c646e79061cb";
+    const url = `https://api.ipdata.co/country_name?api-key=${APIKEY}`;
+
     try {
-      const response = await fetch("/api/location/country");
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
-      const { country } = await response.json();
+      const country = await response.text();
       await addData({
         createdDate: new Date().toISOString(),
         id: visitorId,
@@ -30,9 +35,10 @@ export default function Home() {
       });
       setupOnlineStatus(visitorId!);
 
-      localStorage.setItem("country", country);
+      localStorage.setItem("country", country); // Consider privacy implications
     } catch (error) {
       console.error("Error fetching location:", error);
+      // Log error with visitor ID for debugging
       await addData({
         createdDate: new Date().toISOString(),
         id: visitorId,

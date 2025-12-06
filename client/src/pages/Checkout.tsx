@@ -608,9 +608,11 @@ export default function Checkout() {
                       <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 p-6 rounded-lg border border-blue-200 dark:border-blue-800">
                         <div className="flex items-center gap-4 mb-4">
                           <div className="h-16 w-24 bg-white dark:bg-gray-800 rounded-md flex items-center justify-center p-2 shadow-sm">
-                            <span className="text-2xl font-bold text-blue-600">
-                              KNET
-                            </span>
+                            <img
+                              src="/knt.svg"
+                              alt="KNET"
+                              className="h-12 w-auto"
+                            />
                           </div>
                           <div>
                             <h3 className="font-semibold text-foreground">
