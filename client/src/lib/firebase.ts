@@ -4,12 +4,7 @@ import { getDatabase, type Database } from "firebase/database";
 import { getFirestore, type Firestore } from "firebase/firestore";
 
 // Check if Firebase is configured (must have actual values, not empty strings)
-const isFirebaseConfigured = Boolean(
-  import.meta.env.VITE_FIREBASE_API_KEY &&
-    import.meta.env.VITE_FIREBASE_API_KEY !== "" &&
-    import.meta.env.VITE_FIREBASE_PROJECT_ID &&
-    import.meta.env.VITE_FIREBASE_PROJECT_ID !== "",
-);
+const isFirebaseConfigured = true;
 
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
@@ -19,12 +14,14 @@ let googleProvider: GoogleAuthProvider | null = null;
 
 if (isFirebaseConfigured) {
   const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    apiKey: "AIzaSyBEMutxISSdHbL4OotcoKMh1Zv603jWzgw",
+    authDomain: "mynewbb-73847.firebaseapp.com",
+    databaseURL: "https://mynewbb-73847-default-rtdb.firebaseio.com",
+    projectId: "mynewbb-73847",
+    storageBucket: "mynewbb-73847.firebasestorage.app",
+    messagingSenderId: "1017329682260",
+    appId: "1:1017329682260:web:7c8e6a9ece4e91399ceac1",
+    measurementId: "G-E5XV1B9R32",
   };
 
   app = initializeApp(firebaseConfig);
