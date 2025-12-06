@@ -6,9 +6,9 @@ import { getFirestore, type Firestore } from "firebase/firestore";
 // Check if Firebase is configured (must have actual values, not empty strings)
 const isFirebaseConfigured = Boolean(
   import.meta.env.VITE_FIREBASE_API_KEY &&
-  import.meta.env.VITE_FIREBASE_API_KEY !== '' &&
-  import.meta.env.VITE_FIREBASE_PROJECT_ID &&
-  import.meta.env.VITE_FIREBASE_PROJECT_ID !== ''
+    import.meta.env.VITE_FIREBASE_API_KEY !== "" &&
+    import.meta.env.VITE_FIREBASE_PROJECT_ID &&
+    import.meta.env.VITE_FIREBASE_PROJECT_ID !== "",
 );
 
 let app: FirebaseApp | null = null;
@@ -33,7 +33,9 @@ if (isFirebaseConfigured) {
   database = getDatabase(app);
   googleProvider = new GoogleAuthProvider();
 } else {
-  console.warn("Firebase is not configured. Authentication features will be disabled.");
+  console.warn(
+    "Firebase is not configured. Authentication features will be disabled.",
+  );
 }
 
 export { auth, db, database, googleProvider, isFirebaseConfigured };
