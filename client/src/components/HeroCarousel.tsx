@@ -115,34 +115,16 @@ export default function HeroCarousel() {
             {t(slide.subtitleAr, slide.subtitleEn)}
           </p>
           <a href="#products">
-          <Button
-            size="lg"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 py-3 rounded-full text-lg"
-            data-testid="button-shop-now"
-          >
-            {t("اشتر الآن", "Shop Now")}
-          </Button>
-          </a>  
+            <Button
+              size="lg"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 py-3 rounded-full text-lg"
+              data-testid="button-shop-now"
+            >
+              {t("اشتر الآن", "Shop Now")}
+            </Button>
+          </a>
         </div>
       </div>
-
-      <button
-        onClick={isRTL ? nextSlide : prevSlide}
-        className="absolute top-1/2 left-4 -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white p-2 rounded-full transition-colors"
-        data-testid="button-carousel-prev"
-        aria-label={t("السابق", "Previous")}
-      >
-        <ChevronLeft className="h-6 w-6" />
-      </button>
-
-      <button
-        onClick={isRTL ? prevSlide : nextSlide}
-        className="absolute top-1/2 right-4 -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white p-2 rounded-full transition-colors"
-        data-testid="button-carousel-next"
-        aria-label={t("التالي", "Next")}
-      >
-        <ChevronRight className="h-6 w-6" />
-      </button>
 
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3">
         {slides.map((_, index) => (
