@@ -373,26 +373,8 @@ export default function Checkout() {
                               data-testid="input-name"
                             />
                           </div>
-                          <div>
-                            <Label htmlFor="email" className="text-sm">
-                              {t("البريد الإلكتروني", "Email")}{" "}
-                              <span className="text-destructive">*</span>
-                            </Label>
-                            <div className="relative mt-1.5">
-                              <Mail className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input
-                                id="email"
-                                type="email"
-                                value={customerInfo.email}
-                                onChange={handleInputChange("email")}
-                                placeholder="email@example.com"
-                                required
-                                className="ps-10"
-                                data-testid="input-email"
-                              />
-                            </div>
-                          </div>
-                          <div>
+
+                          <div className="md:col-span-2">
                             <Label htmlFor="phone" className="text-sm">
                               {t("رقم الهاتف", "Phone Number")}{" "}
                               <span className="text-destructive">*</span>
